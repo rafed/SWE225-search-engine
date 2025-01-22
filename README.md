@@ -111,6 +111,4 @@ This project is to build a complete search engine over the course of three miles
 - Use GitHub for collaboration.
 
 ---
-**Contact Information:**
-For questions or clarifications, contact the instructor or TAs.
 
