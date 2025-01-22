@@ -1,3 +1,11 @@
+### Corpus Files ###
+
+developer/
+DEV/
+developer.zip
+
+###################
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
