@@ -38,8 +38,9 @@ def remove_tags_and_content(soup):
 
     for tag in tags_to_remove:
         for element in soup.find_all(tag):
-            element.insert_before(' ')
-            element.decompose()
+            if element.parent:
+                element.insert_before(' ')
+                element.decompose()
 
     return soup
 
