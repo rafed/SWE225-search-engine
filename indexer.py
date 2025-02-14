@@ -3,8 +3,10 @@ import sys
 import json
 from bs4 import BeautifulSoup
 from text_processor import tokenize, stem_words
+from urllib.parse import urldefrag
 
 def extract_urls_and_contents(directory):
+    print('extracting urls and contents')
     urls = []
     contents = {}
     
@@ -19,7 +21,8 @@ def extract_urls_and_contents(directory):
                         if 'encoding' in data:
                             encoding_type = data['encoding']
                         if 'url' in data:
-                            urls.append(data['url'])
+                            url, _ = urldefrag(data['url'])
+                            urls.append(url)
                         if 'content' in data:
                             content = data['content']
                             if encoding_type:
@@ -30,6 +33,17 @@ def extract_urls_and_contents(directory):
     
     return urls, contents
 
+def remove_tags_and_content(soup):
+    tags_to_remove = ['title', 'h1', 'h2', 'h3', 'b', 'strong']
+
+    for tag in tags_to_remove:
+        for element in soup.find_all(tag):
+            element.insert_before(' ')
+            element.decompose()
+
+    return soup
+
+
 def categorize_text(soup):
     text_category = {
         'title': [soup.title.string] if soup.title else [],
@@ -39,7 +53,8 @@ def categorize_text(soup):
         'bold': [b.get_text(strip=True) for b in soup.find_all(['b', 'strong'])],
     }
     
-    text_category['full_text'] = [' '.join(soup.get_text().split())]
+    soup = remove_tags_and_content(soup)
+    text_category['other_text'] = [' '.join(soup.get_text().split())]
     
     return text_category
 
@@ -52,9 +67,13 @@ if __name__ == '__main__':
 
     urls, contents = extract_urls_and_contents(input_directory)
     
-    for filename, soup in contents.items():
-        print('processing', filename)
-        processed_text = {}
+    for url, content in zip(urls, contents.items()):
+        print('processing', url)
+        content_dict = {}
+        content_dict['url'] = url
+
+        filename = content[0]
+        soup = content[1]
         text_category = categorize_text(soup)
         
         for category, texts in text_category.items():
@@ -64,10 +83,11 @@ if __name__ == '__main__':
                 stemmed_tokens = stem_words(tokens)
                 all_tokens.extend(stemmed_tokens)
             
-            processed_text[category] = all_tokens
-
+            content_dict[category] = all_tokens
+        
+        
         filename = os.path.basename(filename).replace('.json', '_processed.json')
         output_filepath = os.path.join(output_directory, filename)
 
         with open(output_filepath, 'w', encoding='utf-8') as f:
-            json.dump(processed_text, f, ensure_ascii=False, indent=4)
+            json.dump(content_dict, f, ensure_ascii=False, indent=4)
