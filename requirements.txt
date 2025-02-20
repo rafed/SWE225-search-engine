@@ -7,3 +7,4 @@ regex==2024.11.6
 soupsieve==2.6
 tqdm==4.67.1
 typing_extensions==4.12.2
+rocksdict==0.3.25

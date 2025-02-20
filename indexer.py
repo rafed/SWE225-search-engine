@@ -4,6 +4,11 @@ import json
 from bs4 import BeautifulSoup
 from text_processor import tokenize, stem_words
 from urllib.parse import urldefrag
+from simhashdb import SimhashManager
+from pathlib import Path
+import tqdm
+
+simhash = SimhashManager()
 
 def get_file_content(filepath):
     encoding_type = ''
@@ -25,32 +30,31 @@ def get_file_content(filepath):
 
 
 def process_files(input_directory, output_directory):
-    for root, _, files in os.walk(input_directory):
-        for filename in files:
-            if not filename.endswith('.json'):
-                continue
-            
-            filepath = os.path.join(root, filename)
-            print('working on', filepath)
-            url, content = get_file_content(filepath)
+    files = list(Path(input_directory).rglob('*.json'))
 
-            content_dict = {}
-            content_dict['url'] = url
+    for filepath in tqdm.tqdm(files):
+        url, content = get_file_content(filepath)
 
-            soup = BeautifulSoup(content, "lxml")
-            text_category = categorize_text(soup)
+        if simhash.exists_duplicate(url, content):
+            continue
+
+        content_dict = {}
+        content_dict['url'] = url
+
+        soup = BeautifulSoup(content, "lxml")
+        text_category = categorize_text(soup)
+        
+        for category, texts in text_category.items():
+            all_tokens = []
+            for text in texts:
+                tokens = tokenize(text)
+                stemmed_tokens = stem_words(tokens)
+                all_tokens.extend(stemmed_tokens)
             
-            for category, texts in text_category.items():
-                all_tokens = []
-                for text in texts:
-                    tokens = tokenize(text)
-                    stemmed_tokens = stem_words(tokens)
-                    all_tokens.extend(stemmed_tokens)
-                
-                content_dict[category] = all_tokens
-            
-            output_filename = filename.replace('.json', '_processed.json')
-            save_file(output_filename, output_directory, content_dict)
+            content_dict[category] = all_tokens
+        
+        output_filename = filepath.stem + '_processed' + filepath.suffix
+        save_file(output_filename, output_directory, content_dict)
 
 
 def save_file(filename, output_directory, content_dict):          
