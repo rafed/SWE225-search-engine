@@ -18,7 +18,6 @@ def document_generator(folder_path):
                 yield filename, title_text, bold_text, other_text, headings_text
 
 def compute_global_df(document_generator, field_index, chunk_size=1000):
-    """Compute global document frequency (DF) for a specific field."""
     df_counts = defaultdict(int)
     total_docs = 0
 
@@ -33,7 +32,6 @@ def compute_global_df(document_generator, field_index, chunk_size=1000):
                     df_counts[word] += 1
             chunk = []  # Reset chunk
 
-    # Process remaining documents in the last chunk
     if chunk:
         for doc in chunk:
             total_docs += 1
@@ -43,13 +41,13 @@ def compute_global_df(document_generator, field_index, chunk_size=1000):
     print(df_counts)
     return df_counts, total_docs
 
-def compute_tf_idf_with_global_idf(document_generator, df_counts, total_docs, field_index, chunk_size=1000):
-    """Compute and print TF-IDF for a specific field using precomputed IDF values."""
-    count_vectorizer = CountVectorizer()
+def compute_tf_idf(document_generator, df_counts, total_docs, field_index, chunk_size=1000):
+    count_vectorizer = CountVectorizer(vocabulary=df_counts.keys())
 
     print(total_docs)
     print(df_counts)
-    idf_values = np.array([np.log(total_docs / (df_counts[word])) for word in df_counts])
+    idf_values = np.array([np.log(total_docs / (df_counts[word] + 1)) for word in df_counts])
+    print(len(idf_values))
     print(idf_values)
     vocab_list = list(df_counts.keys())
 
@@ -62,27 +60,32 @@ def compute_tf_idf_with_global_idf(document_generator, df_counts, total_docs, fi
         doc_ids.append(doc_id)
 
         if len(chunk) >= chunk_size:
-            raw_tf_matrix  = count_vectorizer.fit_transform(chunk)  # Get TF values
+            raw_tf_matrix  = count_vectorizer.fit_transform(chunk)
             num_terms_in_docs = raw_tf_matrix.sum(axis=1).A1
+            num_terms_in_docs[num_terms_in_docs == 0] = 1
             tf_matrix = raw_tf_matrix / num_terms_in_docs[:, np.newaxis]
-            tfidf_matrix = tf_matrix.multiply(idf_values)  # Apply global IDF
+            tfidf_matrix = tf_matrix.multiply(idf_values)
             
             print_tfidf_scores(doc_ids, tfidf_matrix, vocab_list)
-            chunk, doc_ids = [], []  # Reset chunk
+            chunk, doc_ids = [], []
 
-    # Process remaining documents in the last chunk
     if chunk:
         raw_tf_matrix = count_vectorizer.fit_transform(chunk)
+        print(count_vectorizer.get_feature_names_out())
+        print(raw_tf_matrix.shape)
         print(raw_tf_matrix)
         num_terms_in_docs = raw_tf_matrix.sum(axis=1).A1
+        num_terms_in_docs[num_terms_in_docs == 0] = 1
         tf_matrix = raw_tf_matrix / num_terms_in_docs[:, np.newaxis]
+        print(tf_matrix.shape)
         print(tf_matrix)
         tfidf_matrix = tf_matrix.multiply(idf_values)
+        print(tfidf_matrix.shape)
         print(tfidf_matrix)
+
         print_tfidf_scores(doc_ids, tfidf_matrix, vocab_list)
 
 def print_tfidf_scores(doc_ids, tfidf_matrix, vocab_list):
-    """Prints each document's TF-IDF scores."""
     tfidf_matrix = tfidf_matrix.tocsr()  # Convert sparse matrix to CSR format
 
     for doc_index, doc_id in enumerate(doc_ids):
@@ -90,19 +93,17 @@ def print_tfidf_scores(doc_ids, tfidf_matrix, vocab_list):
         tfidf_scores = tfidf_matrix[doc_index].toarray().flatten()  # Now it's subscriptable
         sorted_indices = np.argsort(-tfidf_scores)  # Sort words by TF-IDF score (descending)
         
-        for idx in sorted_indices[:10]:  # Print top 10 words (adjustable)
+        for idx in sorted_indices[:]:
             if tfidf_scores[idx] > 0:
                 print(f"  {vocab_list[idx]}: {tfidf_scores[idx]:.4f}")
 
 
-# Folder path containing JSON documents
-folder_path = "processed_files"
+if __name__ == '__main__':
+    folder_path = "processed_files"
 
-# Compute DF and TF-IDF separately for each field
-fields = ["title", "bold", "other_text", "headings (h1+h2+h3)"]
+    fields = ["title", "bold", "other_text", "headings (h1+h2+h3)"]
 
-for i, field_name in enumerate(fields):
-    print(f"\nProcessing field: {field_name}")
-    df_counts, total_docs = compute_global_df(lambda: document_generator(folder_path), field_index=i, chunk_size=1000)
-    compute_tf_idf_with_global_idf(lambda: document_generator(folder_path), df_counts, total_docs, field_index=i, chunk_size=1000)
-    break
+    for i, field_name in enumerate(fields):
+        print(f"\nProcessing field: {field_name}")
+        df_counts, total_docs = compute_global_df(lambda: document_generator(folder_path), field_index=i, chunk_size=1000)
+        compute_tf_idf(lambda: document_generator(folder_path), df_counts, total_docs, field_index=i, chunk_size=1000)
