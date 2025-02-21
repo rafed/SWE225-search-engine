@@ -183,3 +183,6 @@ cython_debug/
 processed_files
 DEV
 fingerprints
+processed_files/
+processed_files-old/
+out.txt

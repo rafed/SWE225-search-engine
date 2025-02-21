@@ -1,95 +1,109 @@
-from sklearn.feature_extraction.text import TfidfVectorizer
-import json
 import os
-from rank_bm25 import BM25Okapi
+import json
+import numpy as np
+from collections import defaultdict
+from sklearn.feature_extraction.text import CountVectorizer
 
-def getProcessedDocuments():
-    allDocuments = {}
-    folder_path="processed_files/"
-    counter=0
-    for filename in os.listdir(folder_path):
-        #print(filename)
-        if filename.endswith('.json'):
-            file_path = os.path.join(folder_path, filename)
-            counter+=1
-
-            # Open and read the JSON file
-            with open(file_path, 'r') as file:
+def document_generator(folder_path):
+    """Yields 'title', 'bold', 'other_text', and combined 'h1+h2+h3' from JSON files."""
+    for filename in sorted(os.listdir(folder_path)):  # Ensure consistent order
+        file_path = os.path.join(folder_path, filename)
+        if os.path.isfile(file_path) and filename.endswith(".json"):
+            with open(file_path, 'r', encoding='utf-8') as file:
                 data = json.load(file)
-                document = ''
-                if data['title'] is not None and len(data['title']) > 0:
-                    document += " ".join(data['title'])
-                if data['h1'] is not None and len(data['h1']) > 0:
-                    document += " ".join(data['h1'])
-                if data['h2'] is not None and len(data['h2']) > 0:
-                    document += " ".join(data['h2'])
-                if data['h3'] is not None and len(data['h3']) > 0:
-                    document += " ".join(data['h3'])
-                if data['bold'] is not None and len(data['bold']) > 0:
-                    document += " ".join(data['bold'])
-                if data['other_text'] is not None and len(data['other_text']) > 0:
-                    document += " ".join(data['other_text'])
-                allDocuments[filename]=document
-    print(f"counter is {counter}")
-    return allDocuments
+                title_text = " ".join(data.get("title", []))
+                bold_text = " ".join(data.get("bold", []))
+                other_text = " ".join(data.get("other_text", []))
+                headings_text = " ".join(data.get("h1", []) + data.get("h2", []) + data.get("h3", []))
+                yield filename, title_text, bold_text, other_text, headings_text
 
-def calculate_tf_idf_of_all_documents(documents):
-    # Initialize the TfidfVectorizer
-    vectorizer = TfidfVectorizer(stop_words=None)
+def compute_global_df(document_generator, field_index, chunk_size=1000):
+    df_counts = defaultdict(int)
+    total_docs = 0
 
-    # Fit and transform the corpus into a TF-IDF matrix
-    tfidf_matrix = vectorizer.fit_transform(documents.values())
+    chunk = []
+    for doc_tuple in document_generator():
+        doc = doc_tuple[field_index + 1]  # Select field: 0-title, 1-bold, 2-other_text, 3-headings
+        chunk.append(doc)
+        if len(chunk) >= chunk_size:
+            for doc in chunk:
+                total_docs += 1
+                for word in set(doc.split()):  # Count unique words per document
+                    df_counts[word] += 1
+            chunk = []  # Reset chunk
 
-    # Get feature names (terms/words)
-    terms = vectorizer.get_feature_names_out()
+    if chunk:
+        for doc in chunk:
+            total_docs += 1
+            for word in set(doc.split()):
+                df_counts[word] += 1
 
-    custom_term_index = {}
-    for index, term in enumerate(terms):
-        custom_term_index[term] = index
+    print(df_counts)
+    return df_counts, total_docs
 
-    custom_doc_index = {}
-    for i, (key, value) in enumerate(documents.items()):
-        custom_doc_index[key] = i
+def compute_tf_idf(document_generator, df_counts, total_docs, field_index, chunk_size=1000):
+    count_vectorizer = CountVectorizer(vocabulary=df_counts.keys())
 
-    # Tf-idf of a specific term in specific document is -
-    tfidf_value = tfidf_matrix[custom_doc_index['0a1a7e7eb0c0851ba9124227b935f8e80d9fbd1d55688e1de47d7b9775dd2ec6_processed.json'], custom_term_index['name']]
-    print("value is "+str(tfidf_value))
-    # Convert the matrix to a dense array and print it
-    dense_matrix = tfidf_matrix.todense()
-    #print("TF-IDF Matrix (Dense Form):\n", dense_matrix)
+    print(total_docs)
+    print(df_counts)
+    idf_values = np.array([np.log(total_docs / (df_counts[word] + 1)) for word in df_counts])
+    print(len(idf_values))
+    print(idf_values)
+    vocab_list = list(df_counts.keys())
 
-    documents = None
-    tfidf_matrix = None
-    dense_matrix = None
-    custom_term_index = None
-    custom_doc_index = None
-    terms = None
+    chunk = []
+    doc_ids = []  # Store document filenames
+    for doc_tuple in document_generator():
+        doc_id = doc_tuple[0]  # Filename as document ID
+        doc = doc_tuple[field_index + 1]  # Select field: 0-title, 1-bold, 2-other_text, 3-headings
+        chunk.append(doc)
+        doc_ids.append(doc_id)
 
-
-def get_bm25_score_for_each_document(documents, query):
-    bm25 = BM25Okapi(documents)
-
-    # Compute BM25 scores for the query
-    bm25_scores = bm25.get_scores(query)
-
-    # Output BM25 scores for each document in the corpus
-    for i, score in enumerate(bm25_scores):
-        print(f"Document {i + 1} BM25 Score: {score:.4f}")
-
-
-
-calculate_tf_idf_of_all_documents(getProcessedDocuments())
-
-# Query to search for
-query = ["this",
-        "is",
-        "a",
-        "paragraph"]
-get_bm25_score_for_each_document(getProcessedDocuments(),query)
-#getProcessedDocuments()
-
-
+        if len(chunk) >= chunk_size:
+            raw_tf_matrix  = count_vectorizer.fit_transform(chunk)
+            num_terms_in_docs = raw_tf_matrix.sum(axis=1).A1
+            num_terms_in_docs[num_terms_in_docs == 0] = 1
+            tf_matrix = raw_tf_matrix / num_terms_in_docs[:, np.newaxis]
+            tfidf_matrix = tf_matrix.multiply(idf_values)
             
-            
+            print_tfidf_scores(doc_ids, tfidf_matrix, vocab_list)
+            chunk, doc_ids = [], []
+
+    if chunk:
+        raw_tf_matrix = count_vectorizer.fit_transform(chunk)
+        print(count_vectorizer.get_feature_names_out())
+        print(raw_tf_matrix.shape)
+        print(raw_tf_matrix)
+        num_terms_in_docs = raw_tf_matrix.sum(axis=1).A1
+        num_terms_in_docs[num_terms_in_docs == 0] = 1
+        tf_matrix = raw_tf_matrix / num_terms_in_docs[:, np.newaxis]
+        print(tf_matrix.shape)
+        print(tf_matrix)
+        tfidf_matrix = tf_matrix.multiply(idf_values)
+        print(tfidf_matrix.shape)
+        print(tfidf_matrix)
+
+        print_tfidf_scores(doc_ids, tfidf_matrix, vocab_list)
+
+def print_tfidf_scores(doc_ids, tfidf_matrix, vocab_list):
+    tfidf_matrix = tfidf_matrix.tocsr()  # Convert sparse matrix to CSR format
+
+    for doc_index, doc_id in enumerate(doc_ids):
+        print(f"\nDocument: {doc_id}")
+        tfidf_scores = tfidf_matrix[doc_index].toarray().flatten()  # Now it's subscriptable
+        sorted_indices = np.argsort(-tfidf_scores)  # Sort words by TF-IDF score (descending)
+        
+        for idx in sorted_indices[:]:
+            if tfidf_scores[idx] > 0:
+                print(f"  {vocab_list[idx]}: {tfidf_scores[idx]:.4f}")
 
 
+if __name__ == '__main__':
+    folder_path = "processed_files"
+
+    fields = ["title", "bold", "other_text", "headings (h1+h2+h3)"]
+
+    for i, field_name in enumerate(fields):
+        print(f"\nProcessing field: {field_name}")
+        df_counts, total_docs = compute_global_df(lambda: document_generator(folder_path), field_index=i, chunk_size=1000)
+        compute_tf_idf(lambda: document_generator(folder_path), df_counts, total_docs, field_index=i, chunk_size=1000)
