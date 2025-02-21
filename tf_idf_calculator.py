@@ -12,7 +12,7 @@ def getProcessedDocuments():
         if filename.endswith('.json'):
             file_path = os.path.join(folder_path, filename)
             counter+=1
-        
+
             # Open and read the JSON file
             with open(file_path, 'r') as file:
                 data = json.load(file)
@@ -58,6 +58,13 @@ def calculate_tf_idf_of_all_documents(documents):
     dense_matrix = tfidf_matrix.todense()
     #print("TF-IDF Matrix (Dense Form):\n", dense_matrix)
 
+    documents = None
+    tfidf_matrix = None
+    dense_matrix = None
+    custom_term_index = None
+    custom_doc_index = None
+    terms = None
+
 
 def get_bm25_score_for_each_document(documents, query):
     bm25 = BM25Okapi(documents)
@@ -79,6 +86,7 @@ query = ["this",
         "a",
         "paragraph"]
 get_bm25_score_for_each_document(getProcessedDocuments(),query)
+#getProcessedDocuments()
 
 
             
