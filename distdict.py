@@ -8,23 +8,22 @@ NUM_SHARDS = 10
 MAX_COUNT_IN_MEM = 100
 
 class DistDict:
-    _shared_state = {}  # Borg shared state
     _lock = threading.Lock()
+    _instances = {}
 
-    # def __init__(self, db_path="./distdict_db"):
-    #     self.__dict__ = self._shared_state
-    #     if not hasattr(self, "initialized"):
-    #         with self._lock:
-    #             if not hasattr(self, "initialized"):
-    #                 self._init_db(db_path)
-    #                 self.initialized = True
+    def __new__(cls, db_name="db"):
+        with cls._lock:  # Ensure thread-safe singleton
+            if db_name not in cls._instances:
+                instance = super().__new__(cls)
+                instance._init_db(db_name)
+                cls._instances[db_name] = instance
+            return cls._instances[db_name]
 
-    def __init__(self, db_name="db"):
+    def _init_db(self, db_name="db"):
         self.db_path = "distdict_" + db_name
         os.makedirs(self.db_path, exist_ok=True)
-
-        self.lock = threading.Lock()
         self.memory_dict = defaultdict(list)
+        self.lock = threading.Lock()
         self.counter = 0
 
     def _get_shard_id(self, term, num_shards = NUM_SHARDS):
@@ -78,6 +77,5 @@ class DistDict:
         if os.path.exists(shard_path):
             with open(shard_path, "rb") as f:
                 shard_dict = pickle.load(f)
-                print("dict before returning: ", shard_dict)
                 return shard_dict[word]
         return []
