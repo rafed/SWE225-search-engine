@@ -79,3 +79,6 @@ class DistDict:
                 shard_dict = pickle.load(f)
                 return shard_dict[word]
         return []
+    
+    def flush(self):
+        self._flush_to_disk()
