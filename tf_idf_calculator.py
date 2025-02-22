@@ -24,7 +24,7 @@ def document_generator(folder_path):
                 bold_text = " ".join(data.get("bold", []))
                 other_text = " ".join(data.get("other_text", []))
                 headings_text = " ".join(data.get("h1", []) + data.get("h2", []) + data.get("h3", []))
-                yield id, " ".join(title_text, bold_text, headings_text, other_text)
+                yield id, " ".join([title_text, bold_text, headings_text, other_text])
 
 def compute_global_df(document_generator, chunk_size=1000):
     df_counts = defaultdict(int)
