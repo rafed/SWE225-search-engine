@@ -11,16 +11,16 @@ class DistDict:
     _shared_state = {}  # Borg shared state
     _lock = threading.Lock()
 
-    def __init__(self, db_path="./distdict_db"):
-        self.__dict__ = self._shared_state
-        if not hasattr(self, "initialized"):
-            with self._lock:
-                if not hasattr(self, "initialized"):
-                    self._init_db(db_path)
-                    self.initialized = True
+    # def __init__(self, db_path="./distdict_db"):
+    #     self.__dict__ = self._shared_state
+    #     if not hasattr(self, "initialized"):
+    #         with self._lock:
+    #             if not hasattr(self, "initialized"):
+    #                 self._init_db(db_path)
+    #                 self.initialized = True
 
-    def _init_db(self, db_path="./distdict_db"):
-        self.db_path = db_path
+    def __init__(self, db_name="db"):
+        self.db_path = "distdict_" + db_name
         os.makedirs(self.db_path, exist_ok=True)
 
         self.lock = threading.Lock()
@@ -61,7 +61,7 @@ class DistDict:
 
         self.memory_dict = defaultdict(list) # fresh memory
 
-    def put(self, word: str, doc_id: str, tfidf: float):
+    def put(self, word: str, doc_id: int, tfidf: float):
         with self.lock: 
             self.memory_dict[word].append((doc_id, tfidf))
             self.counter += 1
