@@ -1,7 +1,8 @@
 import os
 import json
-from distdict import DistDict
+import pickle
 import numpy as np
+from distdict import DistDict
 from collections import defaultdict
 from sklearn.feature_extraction.text import CountVectorizer
 
@@ -105,10 +106,11 @@ def create_inverted_index(field_index, doc_ids, tfidf_matrix, vocab_list):
         for idx in range(len(tfidf_scores)):
             if tfidf_scores[idx] > 0:
                 print(f"  {vocab_list[idx]}: {tfidf_scores[idx]:.4f}")
-                db.put(vocab_list[idx], doc_id, tfidf_scores[idx]:.4f)
+                db.put(vocab_list[idx], doc_id, f"{tfidf_scores[idx]:.4f}")
 
 if __name__ == '__main__':
     folder_path = "processed_files"
+    global urls
 
     for i, field_name in enumerate(fields):
         print(f"\nProcessing field: {field_name}")
@@ -117,3 +119,7 @@ if __name__ == '__main__':
 
     for db in dbs:
         db.flush()
+
+    print(urls)
+    with open('url_mapping.pkl', 'wb') as pkl_file:
+        pickle.dump(urls, pkl_file)

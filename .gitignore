@@ -185,3 +185,4 @@ processed_files/
 processed_files-old/
 out.txt
 distdict_*
+*.pkl
