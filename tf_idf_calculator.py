@@ -6,8 +6,7 @@ from distdict import DistDict
 from collections import defaultdict
 from sklearn.feature_extraction.text import CountVectorizer
 
-fields = ["title", "bold", "other_text", "headings"]
-dbs = [DistDict(name) for name in fields]
+db = DistDict('db')
 
 def document_generator(folder_path):
     global urls
@@ -25,15 +24,15 @@ def document_generator(folder_path):
                 bold_text = " ".join(data.get("bold", []))
                 other_text = " ".join(data.get("other_text", []))
                 headings_text = " ".join(data.get("h1", []) + data.get("h2", []) + data.get("h3", []))
-                yield id, title_text, bold_text, other_text, headings_text
+                yield id, " ".join(title_text, bold_text, headings_text, other_text)
 
-def compute_global_df(document_generator, field_index, chunk_size=1000):
+def compute_global_df(document_generator, chunk_size=1000):
     df_counts = defaultdict(int)
     total_docs = 0
 
     chunk = []
     for doc_tuple in document_generator():
-        doc = doc_tuple[field_index + 1]  # Select field: 0-title, 1-bold, 2-other_text, 3-headings
+        doc = doc_tuple[1] 
         chunk.append(doc)
         if len(chunk) >= chunk_size:
             for doc in chunk:
@@ -51,7 +50,7 @@ def compute_global_df(document_generator, field_index, chunk_size=1000):
     # print(df_counts)
     return df_counts, total_docs
 
-def compute_tf_idf(document_generator, df_counts, total_docs, field_index, chunk_size=1000):
+def compute_tf_idf(document_generator, df_counts, total_docs, chunk_size=1000):
     count_vectorizer = CountVectorizer(vocabulary=df_counts.keys())
 
     # print(total_docs)
@@ -65,7 +64,7 @@ def compute_tf_idf(document_generator, df_counts, total_docs, field_index, chunk
     doc_ids = []
     for doc_tuple in document_generator():
         doc_id = doc_tuple[0]
-        doc = doc_tuple[field_index + 1]  # 0-title, 1-bold, 2-other_text, 3-headings
+        doc = doc_tuple[1] 
         chunk.append(doc)
         doc_ids.append(doc_id)
 
@@ -76,7 +75,7 @@ def compute_tf_idf(document_generator, df_counts, total_docs, field_index, chunk
             tf_matrix = raw_tf_matrix / num_terms_in_docs[:, np.newaxis]
             tfidf_matrix = tf_matrix.multiply(idf_values)
             
-            create_inverted_index(field_index, doc_ids, tfidf_matrix, vocab_list)
+            create_inverted_index(doc_ids, tfidf_matrix, vocab_list)
             chunk, doc_ids = [], []
 
     if chunk:
@@ -93,32 +92,29 @@ def compute_tf_idf(document_generator, df_counts, total_docs, field_index, chunk
         # print(tfidf_matrix.shape)
         # print(tfidf_matrix)
 
-        create_inverted_index(field_index, doc_ids, tfidf_matrix, vocab_list)
+        create_inverted_index(doc_ids, tfidf_matrix, vocab_list)
 
-def create_inverted_index(field_index, doc_ids, tfidf_matrix, vocab_list):
-    db = DistDict(fields[field_index])
+def create_inverted_index(doc_ids, tfidf_matrix, vocab_list):
+    
     tfidf_matrix = tfidf_matrix.tocsr()
 
     for doc_index, doc_id in enumerate(doc_ids):
-        print(f"\nDocument: {doc_id}")
+        # print(f"\nDocument: {doc_id}")
         tfidf_scores = tfidf_matrix[doc_index].toarray().flatten()
         
         for idx in range(len(tfidf_scores)):
             if tfidf_scores[idx] > 0:
-                print(f"  {vocab_list[idx]}: {tfidf_scores[idx]:.4f}")
+                # print(f"  {vocab_list[idx]}: {tfidf_scores[idx]:.4f}")
                 db.put(vocab_list[idx], doc_id, f"{tfidf_scores[idx]:.4f}")
 
 if __name__ == '__main__':
     folder_path = "processed_files"
     global urls
 
-    for i, field_name in enumerate(fields):
-        print(f"\nProcessing field: {field_name}")
-        df_counts, total_docs = compute_global_df(lambda: document_generator(folder_path), field_index=i, chunk_size=1000)
-        compute_tf_idf(lambda: document_generator(folder_path), df_counts, total_docs, field_index=i, chunk_size=1000)
+    df_counts, total_docs = compute_global_df(lambda: document_generator(folder_path), chunk_size=1000)
+    compute_tf_idf(lambda: document_generator(folder_path), df_counts, total_docs, chunk_size=1000)
 
-    for db in dbs:
-        db.flush()
+    db.flush()
 
     print(urls)
     with open('url_mapping.pkl', 'wb') as pkl_file:
