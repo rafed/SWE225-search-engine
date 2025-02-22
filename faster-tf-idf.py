@@ -5,8 +5,9 @@ import collections
 from distdict import DistDict
 from collections import defaultdict
 import math
+from tqdm import tqdm
 
-db = DistDict('mydb')
+db = DistDict('mydb_rafed')
 
 def document_generator(folder_path):
     global urls
@@ -30,22 +31,12 @@ def compute_df(document_generator, chunk_size=1000):
     df_counts = defaultdict(int)
     total_docs = 0
 
-    chunk = []
     for doc_tuple in document_generator():
         doc = doc_tuple[1] 
-        chunk.append(doc)
-        if len(chunk) >= chunk_size:
-            for doc in chunk:
-                total_docs += 1
-                for word in set(doc.split()):
-                    df_counts[word] += 1
-            chunk = [] 
-
-    if chunk:
-        for doc in chunk:
-            total_docs += 1
-            for word in set(doc.split()):
-                df_counts[word] += 1
+        
+        total_docs += 1
+        for word in set(doc.split()):
+            df_counts[word] += 1
 
     # print(df_counts)
     return df_counts, total_docs
@@ -57,7 +48,7 @@ def compute_tf(content):
     return {word: count / total_terms for word, count in tf.items()}
         
 def compute_tf_idf(document_generator, df_counts, total_docs):
-    for doc_tuple in document_generator():
+    for doc_tuple in tqdm(document_generator(), desc="computing tf-idf", total=total_docs):
         doc_id = doc_tuple[0]
         content = doc_tuple[1]
         tf = compute_tf(content)
@@ -75,7 +66,7 @@ def create_inverted_index(doc_id, tfidf_scores):
 
 
 if __name__ == '__main__':
-    folder_path = "processed_files-old2"
+    folder_path = "processed_files"
     global urls
 
     df_counts, total_docs = compute_df(lambda: document_generator(folder_path), chunk_size=1000)

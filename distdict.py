@@ -5,7 +5,7 @@ import os
 from collections import defaultdict
 
 NUM_SHARDS = 10
-MAX_COUNT_IN_MEM = 100
+MAX_COUNT_IN_MEM = 500000
 
 class DistDict:
     _lock = threading.Lock()
