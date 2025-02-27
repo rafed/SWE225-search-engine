@@ -1,101 +1,125 @@
 import os
-import sys
 import json
-from bs4 import BeautifulSoup
-from text_processor import tokenize, stem_words
-from urllib.parse import urldefrag
-from simhashdb import SimhashManager
-from pathlib import Path
-import tqdm
+import pickle
+import numpy as np
+from distdict import DistDict
+from collections import defaultdict
+from sklearn.feature_extraction.text import CountVectorizer
 
-simhash = SimhashManager()
+fields = ["title", "bold", "other_text", "headings"]
+dbs = [DistDict(name) for name in fields]
 
-def get_file_content(filepath):
-    encoding_type = ''
-    try:
-        with open(filepath, 'r', encoding='utf-8') as f:
-            data = json.load(f)
-            if 'encoding' in data:
-                encoding_type = data['encoding']
-            if 'url' in data:
-                url, _ = urldefrag(data['url'])
-            if 'content' in data:
-                content = data['content']
-                if encoding_type:
-                    content = content.encode(encoding_type).decode(encoding_type)
-    except (json.JSONDecodeError, IOError) as e:
-        print(f'Error in {filepath}: {e}')
+def document_generator(folder_path):
+    global urls
+    urls = defaultdict(int)
+    id = 0
+    for filename in sorted(os.listdir(folder_path)): 
+        file_path = os.path.join(folder_path, filename)
+        if os.path.isfile(file_path) and filename.endswith(".json"):
+            with open(file_path, 'r', encoding='utf-8') as file:
+                data = json.load(file)
+                url = data.get("url", "")
+                urls[url] = id
+                id = id + 1 
+                title_text = " ".join(data.get("title", []))
+                bold_text = " ".join(data.get("bold", []))
+                other_text = " ".join(data.get("other_text", []))
+                headings_text = " ".join(data.get("h1", []) + data.get("h2", []) + data.get("h3", []))
+                yield id, title_text, bold_text, other_text, headings_text
 
-    return url, content
+def compute_global_df(document_generator, field_index, chunk_size=1000):
+    df_counts = defaultdict(int)
+    total_docs = 0
 
+    chunk = []
+    for doc_tuple in document_generator():
+        doc = doc_tuple[field_index + 1]  # Select field: 0-title, 1-bold, 2-other_text, 3-headings
+        chunk.append(doc)
+        if len(chunk) >= chunk_size:
+            for doc in chunk:
+                total_docs += 1
+                for word in set(doc.split()):
+                    df_counts[word] += 1
+            chunk = [] 
 
-def process_files(input_directory, output_directory):
-    files = list(Path(input_directory).rglob('*.json'))
+    if chunk:
+        for doc in chunk:
+            total_docs += 1
+            for word in set(doc.split()):
+                df_counts[word] += 1
 
-    for filepath in tqdm.tqdm(files):
-        url, content = get_file_content(filepath)
+    # print(df_counts)
+    return df_counts, total_docs
 
-        if simhash.exists_duplicate(url, content):
-            continue
+def compute_tf_idf(document_generator, df_counts, total_docs, field_index, chunk_size=1000):
+    count_vectorizer = CountVectorizer(vocabulary=df_counts.keys())
 
-        content_dict = {}
-        content_dict['url'] = url
+    # print(total_docs)
+    # print(df_counts)
+    idf_values = np.array([np.log(total_docs / (df_counts[word] + 1)) for word in df_counts])
+    # print(len(idf_values))
+    # print(idf_values)
+    vocab_list = list(df_counts.keys())
 
-        soup = BeautifulSoup(content, "lxml")
-        text_category = categorize_text(soup)
-        
-        for category, texts in text_category.items():
-            all_tokens = []
-            for text in texts:
-                tokens = tokenize(text)
-                stemmed_tokens = stem_words(tokens)
-                all_tokens.extend(stemmed_tokens)
+    chunk = []
+    doc_ids = []
+    for doc_tuple in document_generator():
+        doc_id = doc_tuple[0]
+        doc = doc_tuple[field_index + 1]  # 0-title, 1-bold, 2-other_text, 3-headings
+        chunk.append(doc)
+        doc_ids.append(doc_id)
+
+        if len(chunk) >= chunk_size:
+            raw_tf_matrix  = count_vectorizer.fit_transform(chunk)
+            num_terms_in_docs = raw_tf_matrix.sum(axis=1).A1
+            num_terms_in_docs[num_terms_in_docs == 0] = 1
+            tf_matrix = raw_tf_matrix / num_terms_in_docs[:, np.newaxis]
+            tfidf_matrix = tf_matrix.multiply(idf_values)
             
-            content_dict[category] = all_tokens
+            create_inverted_index(field_index, doc_ids, tfidf_matrix, vocab_list)
+            chunk, doc_ids = [], []
+
+    if chunk:
+        raw_tf_matrix = count_vectorizer.fit_transform(chunk)
+        # print(count_vectorizer.get_feature_names_out())
+        # print(raw_tf_matrix.shape)
+        # print(raw_tf_matrix)
+        num_terms_in_docs = raw_tf_matrix.sum(axis=1).A1
+        num_terms_in_docs[num_terms_in_docs == 0] = 1
+        tf_matrix = raw_tf_matrix / num_terms_in_docs[:, np.newaxis]
+        # print(tf_matrix.shape)
+        # print(tf_matrix)
+        tfidf_matrix = tf_matrix.multiply(idf_values)
+        # print(tfidf_matrix.shape)
+        # print(tfidf_matrix)
+
+        create_inverted_index(field_index, doc_ids, tfidf_matrix, vocab_list)
+
+def create_inverted_index(field_index, doc_ids, tfidf_matrix, vocab_list):
+    db = DistDict(fields[field_index])
+    tfidf_matrix = tfidf_matrix.tocsr()
+
+    for doc_index, doc_id in enumerate(doc_ids):
+        print(f"\nDocument: {doc_id}")
+        tfidf_scores = tfidf_matrix[doc_index].toarray().flatten()
         
-        output_filename = filepath.stem + '_processed' + filepath.suffix
-        save_file(output_filename, output_directory, content_dict)
-
-
-def save_file(filename, output_directory, content_dict):          
-    output_filepath = os.path.join(output_directory, filename)
-
-    with open(output_filepath, 'w', encoding='utf-8') as f:
-        json.dump(content_dict, f, ensure_ascii=False, indent=4)
-                    
-
-def remove_tags_and_content(soup):
-    tags_to_remove = ['title', 'h1', 'h2', 'h3', 'b', 'strong']
-
-    for tag in tags_to_remove:
-        for element in soup.find_all(tag):
-            if element.parent:
-                element.insert_before(' ')
-                element.decompose()
-
-    return soup
-
-
-def categorize_text(soup):
-    text_category = {
-        'title': [soup.title.string] if soup.title else [],
-        'h1': [h1.get_text(strip=True) for h1 in soup.find_all('h1')],
-        'h2': [h2.get_text(strip=True) for h2 in soup.find_all('h2')],
-        'h3': [h3.get_text(strip=True) for h3 in soup.find_all('h3')],
-        'bold': [b.get_text(strip=True) for b in soup.find_all(['b', 'strong'])],
-    }
-    
-    soup = remove_tags_and_content(soup)
-    text_category['other_text'] = [' '.join(soup.get_text().split())]
-    
-    return text_category
-
+        for idx in range(len(tfidf_scores)):
+            if tfidf_scores[idx] > 0:
+                print(f"  {vocab_list[idx]}: {tfidf_scores[idx]:.4f}")
+                db.put(vocab_list[idx], doc_id, f"{tfidf_scores[idx]:.4f}")
 
 if __name__ == '__main__':
-    input_directory = sys.argv[1]
-    output_directory = './processed_files'
+    folder_path = "processed_files"
+    global urls
 
-    os.makedirs(output_directory, exist_ok=True)
+    for i, field_name in enumerate(fields):
+        print(f"\nProcessing field: {field_name}")
+        df_counts, total_docs = compute_global_df(lambda: document_generator(folder_path), field_index=i, chunk_size=1000)
+        compute_tf_idf(lambda: document_generator(folder_path), df_counts, total_docs, field_index=i, chunk_size=1000)
 
-    process_files(input_directory, output_directory)
-        
+    for db in dbs:
+        db.flush()
+
+    print(urls)
+    with open('url_mapping.pkl', 'wb') as pkl_file:
+        pickle.dump(urls, pkl_file)
