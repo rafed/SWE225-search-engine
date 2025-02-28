@@ -8,3 +8,4 @@ soupsieve==2.6
 tqdm==4.67.1
 typing_extensions==4.12.2
 rocksdict==0.3.25
+simhash-pybind

@@ -1,101 +1,110 @@
 import os
-import sys
 import json
-from bs4 import BeautifulSoup
-from text_processor import tokenize, stem_words
-from urllib.parse import urldefrag
-from simhashdb import SimhashManager
-from pathlib import Path
-import tqdm
+import pickle
+import collections
+from distdict import DistDict
+from collections import defaultdict
+import math
+from tqdm import tqdm
 
-simhash = SimhashManager()
+db = DistDict('mydb_rafed')
 
-def get_file_content(filepath):
-    encoding_type = ''
-    try:
-        with open(filepath, 'r', encoding='utf-8') as f:
-            data = json.load(f)
-            if 'encoding' in data:
-                encoding_type = data['encoding']
-            if 'url' in data:
-                url, _ = urldefrag(data['url'])
-            if 'content' in data:
-                content = data['content']
-                if encoding_type:
-                    content = content.encode(encoding_type).decode(encoding_type)
-    except (json.JSONDecodeError, IOError) as e:
-        print(f'Error in {filepath}: {e}')
+WEIGHTS = {
+    "title": 3.0,
+    "h1": 2.5,
+    "h2": 2.5,
+    "h3": 2.5,
+    "h4": 2.5,
+    "h5": 2.5,
+    "h6": 2.5,
+    "bold": 2.0,
+    "other_text": 1.0
+}
 
-    return url, content
+def document_generator(folder_path):
+    global urls
+    urls = defaultdict(int)
+    doc_id = 0
 
+    for filename in os.listdir(folder_path):
+        file_path = os.path.join(folder_path, filename)
+        if os.path.isfile(file_path) and filename.endswith(".json"):
+            with open(file_path, 'r', encoding='utf-8') as file:
+                data = json.load(file)
 
-def process_files(input_directory, output_directory):
-    files = list(Path(input_directory).rglob('*.json'))
+                url = data.get("url", "")
+                urls[url] = doc_id
+                
+                sections = {
+                    "title": data.get("title", []),
+                    "bold": data.get("bold", []),
+                    "h1": data.get("h1", []),
+                    "h2": data.get("h2", []),
+                    "h3": data.get("h3", []),
+                    "h4": data.get("h4", []),
+                    "h5": data.get("h5", []),
+                    "h6": data.get("h6", []),
+                    "other_text": data.get("other_text", [])
+                }
 
-    for filepath in tqdm.tqdm(files):
-        url, content = get_file_content(filepath)
+                yield doc_id, sections
+                doc_id += 1 
 
-        if simhash.exists_duplicate(url, content):
-            continue
+def compute_df(document_generator):
+    df_counts = defaultdict(int)
+    total_docs = 0
 
-        content_dict = {}
-        content_dict['url'] = url
-
-        soup = BeautifulSoup(content, "lxml")
-        text_category = categorize_text(soup)
+    for doc_id, sections in document_generator():
+        unique_terms = set()
         
-        for category, texts in text_category.items():
-            all_tokens = []
-            for text in texts:
-                tokens = tokenize(text)
-                stemmed_tokens = stem_words(tokens)
-                all_tokens.extend(stemmed_tokens)
-            
-            content_dict[category] = all_tokens
+        for section, terms in sections.items():
+            unique_terms.update(terms)
         
-        output_filename = filepath.stem + '_processed' + filepath.suffix
-        save_file(output_filename, output_directory, content_dict)
+        for term in unique_terms:
+            df_counts[term] += 1
+        
+        total_docs += 1
 
+    return df_counts, total_docs
 
-def save_file(filename, output_directory, content_dict):          
-    output_filepath = os.path.join(output_directory, filename)
+def compute_tf(sections):
+    weighted_tf = defaultdict(float)
+    total_weighted_terms = 0
 
-    with open(output_filepath, 'w', encoding='utf-8') as f:
-        json.dump(content_dict, f, ensure_ascii=False, indent=4)
-                    
+    for section, terms in sections.items():
+        weight = WEIGHTS.get(section, 1.0)  # Default to 1.0 if section not listed
+        
+        for term in terms:
+            weighted_tf[term] += weight
+            total_weighted_terms += weight 
 
-def remove_tags_and_content(soup):
-    tags_to_remove = ['title', 'h1', 'h2', 'h3', 'b', 'strong']
+    return {term: freq / total_weighted_terms for term, freq in weighted_tf.items()}
 
-    for tag in tags_to_remove:
-        for element in soup.find_all(tag):
-            if element.parent:
-                element.insert_before(' ')
-                element.decompose()
+def compute_tf_idf(document_generator, df_counts, total_docs):
+    for doc_id, sections in tqdm(document_generator(), desc="Computing TF-IDF", total=total_docs):
+        tf = compute_tf(sections)
 
-    return soup
+        tfidf_scores = {
+            term: tf[term] * math.log(total_docs / (df_counts[term] + 1))
+            for term in tf
+        }
 
+        create_inverted_index(doc_id, tfidf_scores)
 
-def categorize_text(soup):
-    text_category = {
-        'title': [soup.title.string] if soup.title else [],
-        'h1': [h1.get_text(strip=True) for h1 in soup.find_all('h1')],
-        'h2': [h2.get_text(strip=True) for h2 in soup.find_all('h2')],
-        'h3': [h3.get_text(strip=True) for h3 in soup.find_all('h3')],
-        'bold': [b.get_text(strip=True) for b in soup.find_all(['b', 'strong'])],
-    }
-    
-    soup = remove_tags_and_content(soup)
-    text_category['other_text'] = [' '.join(soup.get_text().split())]
-    
-    return text_category
-
+def create_inverted_index(doc_id, tfidf_scores):
+    for term, value in tfidf_scores.items():
+        if value > 0:
+            db.put(term, doc_id, f"{value:.4f}")
 
 if __name__ == '__main__':
-    input_directory = sys.argv[1]
-    output_directory = './processed_files'
+    folder_path = "processed_files"
+    global urls
 
-    os.makedirs(output_directory, exist_ok=True)
+    df_counts, total_docs = compute_df(lambda: document_generator(folder_path))
+    compute_tf_idf(lambda: document_generator(folder_path), df_counts, total_docs)
 
-    process_files(input_directory, output_directory)
-        
+    db.flush()
+
+    print(urls)
+    with open('url_mapping.pkl', 'wb') as pkl_file:
+        pickle.dump(urls, pkl_file)
