@@ -147,8 +147,8 @@ def categorize_text(url, soup):
     anchors = []
     for a in soup.find_all('a', href=True):
         try:
-            normalized = normalize_url(urljoin(url, a['href']))
-            anchors.append(normalized)
+            normalized_url = normalize_url(urljoin(url, a['href']))
+            anchors.append(normalized_url)
         except Exception as e:
             print(f"Skipping invalid URL '{url} + {a['href']}': {e}")
 
