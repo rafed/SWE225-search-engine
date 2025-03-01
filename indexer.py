@@ -85,7 +85,7 @@ def compute_tf_idf(document_generator, df_counts, total_docs):
         tf = compute_tf(sections)
 
         tfidf_scores = {
-            term: tf[term] * math.log(total_docs / (df_counts[term] + 1))
+            term: tf[term] * (math.log(total_docs / df_counts[term]) + 1)
             for term in tf
         }
 
