@@ -1,5 +1,10 @@
 from text_processor import tokenize, stem_words
 from distdict import DistDict
+import math
+from collections import defaultdict
+import json
+import pickle
+import time
 
 db = DistDict()
 
@@ -29,7 +34,7 @@ def search(query_terms, idf_dict, doc_norms, top_k=10):
     for term in query_tfidf.keys():
         postings = db.get(term)
         for (doc_id, tfidf_score) in postings:
-            doc_scores[doc_id] += query_tfidf[term] * tfidf_score
+            doc_scores[doc_id] += query_tfidf[term] * float(tfidf_score)
     
     with open('url_mapping.pkl', 'rb') as pkl_file:
         urls = pickle.load(pkl_file)
@@ -37,7 +42,7 @@ def search(query_terms, idf_dict, doc_norms, top_k=10):
     results = []
     for doc_id in doc_scores:
         similarity = cosine_similarity(query_tfidf, doc_scores[doc_id], doc_norms.get(doc_id, 0), query_norm)
-        url = [u for u, d in urls.items() if d == doc_id][0]
+        url = [u for u, d in urls.items() if d == doc_id]
         results.append((similarity, doc_id, url))
     
     results.sort(reverse=True)

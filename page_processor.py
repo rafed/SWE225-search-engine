@@ -99,18 +99,15 @@ def normalize_url(url):
             url = "http://" + url
 
         parsed = urlparse(url)
-        
         hostname = parsed.hostname.strip("[]") if parsed.hostname else None
         
         if not hostname:
-            print(f"Skipping invalid URL (no hostname): {url}")
+            print(f"Skipping URL without hostname: {url}")
             return None
 
-        if hostname == "YOUR_IP" or hostname == "[YOUR_IP]":
-            pass
-        elif not (is_valid_ipv4(hostname) or is_valid_domain(hostname)):
-            print(f"Skipping invalid URL (invalid hostname): {url}")
-            return None  
+        if not (is_valid_domain(hostname) or is_valid_ipv4(hostname)):
+            print(f"Skipping URL with invalid hostname: {url}")
+            return None
 
         scheme = parsed.scheme.lower()
         netloc = parsed.netloc.lower()
@@ -119,9 +116,7 @@ def normalize_url(url):
             netloc = netloc.rsplit(":", 1)[0]
 
         path = unquote(parsed.path).rstrip("/") if parsed.path and parsed.path != "/" else "/"
-        
         query = urlencode(sorted(parse_qsl(parsed.query))) if parsed.query else ""
-        
         fragment = ""
 
         normalized = urlunparse((scheme, netloc, path, "", query, fragment))
@@ -147,8 +142,10 @@ def categorize_text(url, soup):
     anchors = []
     for a in soup.find_all('a', href=True):
         try:
-            normalized_url = normalize_url(urljoin(url, a['href']))
-            anchors.append(normalized_url)
+            link_url = urljoin(url, a['href'])
+            normalized_url = normalize_url(link_url)
+            if normalized_url:
+                anchors.append(normalized_url)
         except Exception as e:
             print(f"Skipping invalid URL '{url} + {a['href']}': {e}")
 

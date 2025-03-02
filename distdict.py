@@ -1,8 +1,9 @@
 import threading
 import hashlib
-import pickle
+from pathlib import Path
 import os
 from collections import defaultdict
+import orjson
 
 NUM_SHARDS = 10
 MAX_COUNT_IN_MEM = 500000
@@ -30,18 +31,18 @@ class DistDict:
         return int(hashlib.md5(term.encode()).hexdigest(), 16) % num_shards
 
     def _read_dict_from_disk(self, shard_id:int):
-        shard_path = os.path.join(self.db_path, f"shard_{shard_id}.pkl")
+        shard_path = os.path.join(self.db_path, f"shard_{shard_id}.json")
         if os.path.exists(shard_path):
-            with open(shard_path, "rb") as f:
-                shard_dict = pickle.load(f)
+            json_bytes = Path(shard_path).read_bytes()
+            shard_dict = defaultdict(list, orjson.loads(json_bytes))
         else:
             shard_dict = defaultdict(list)
         return shard_dict
 
     def _write_dict_to_disk(self, shard_id:int, shard_dict:defaultdict):
-        shard_path = os.path.join(self.db_path, f"shard_{shard_id}.pkl")
-        with open(shard_path, "wb") as f:
-            pickle.dump(shard_dict, f)
+        shard_path = os.path.join(self.db_path, f"shard_{shard_id}.json")
+        json_bytes = orjson.dumps(shard_dict)
+        Path(shard_path).write_bytes(json_bytes)
 
     def _flush_to_disk(self):
         shard_batches = defaultdict(list) # For batch updates
@@ -69,16 +70,10 @@ class DistDict:
                 self._flush_to_disk()
     
     def get(self, word: str) -> list:
-        self._flush_to_disk()
-
+        # self._flush_to_disk()
         shard_id = self._get_shard_id(word)
-        shard_path = os.path.join(self.db_path, f"shard_{shard_id}.pkl")
-
-        if os.path.exists(shard_path):
-            with open(shard_path, "rb") as f:
-                shard_dict = pickle.load(f)
-                return shard_dict[word]
-        return []
+        shard_dict = self._read_dict_from_disk(shard_id)
+        return shard_dict[word]
     
     def flush(self):
         self._flush_to_disk()

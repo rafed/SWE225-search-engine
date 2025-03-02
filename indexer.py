@@ -88,6 +88,7 @@ def compute_tf(sections):
     return {term: freq / total_weighted_terms for term, freq in weighted_tf.items()}
 
 def compute_tf_idf(document_generator, idf_dict, total_docs):
+    doc_norms = defaultdict(float)
     for doc_id, sections in tqdm(document_generator(), desc="Computing TF-IDF", total=total_docs):
         tf = compute_tf(sections)
 
