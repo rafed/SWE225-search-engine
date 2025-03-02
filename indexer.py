@@ -1,11 +1,11 @@
 import os
 import json
-import pickle
-import collections
 from distdict import DistDict
 from collections import defaultdict
 import math
 from tqdm import tqdm
+import orjson
+from pathlib import Path
 
 db = DistDict()
 
@@ -69,8 +69,7 @@ def compute_df_idf(document_generator):
     for term, df in df_counts.items():
         idf_dict[term] = math.log(total_docs / df) + 1
 
-    with open('idf_values.json', 'w', encoding='utf-8') as f:
-        json.dump(idf_dict, f)
+    Path('data/idf_values.json').write_bytes(orjson.dumps(idf_dict))
 
     return idf_dict, total_docs
 
@@ -100,9 +99,8 @@ def compute_tf_idf(document_generator, idf_dict, total_docs):
         create_inverted_index(doc_id, tfidf_scores)
 
         doc_norms[doc_id] = math.sqrt(sum(score ** 2 for score in tfidf_scores.values()))
-        
-    with open('doc_norms.json', 'w', encoding='utf-8') as f:
-        json.dump(doc_norms, f)
+    
+    Path('data/doc_norms.json').write_bytes(orjson.dumps(doc_norms))
 
 def create_inverted_index(doc_id, tfidf_scores):
     for term, value in tfidf_scores.items():
@@ -110,7 +108,7 @@ def create_inverted_index(doc_id, tfidf_scores):
             db.put(term, doc_id, f"{value:.4f}")
 
 if __name__ == '__main__':
-    folder_path = "processed_files"
+    folder_path = "data/processed_files"
     global urls
 
     idf_dict, total_docs = compute_df_idf(lambda: document_generator(folder_path))
@@ -118,6 +116,4 @@ if __name__ == '__main__':
 
     db.flush()
 
-    print(urls)
-    with open('url_mapping.pkl', 'wb') as pkl_file:
-        pickle.dump(urls, pkl_file)
+    Path('data/url_mapping.json').write_bytes(orjson.dumps(urls))

@@ -188,3 +188,5 @@ processed_files-old2/
 out.txt
 distdict_*
 *.pkl
+data/
+env_win/

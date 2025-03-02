@@ -168,7 +168,7 @@ def categorize_text(url, soup):
 
 if __name__ == '__main__':
     input_directory = sys.argv[1]
-    output_directory = './processed_files'
+    output_directory = './data/processed_files'
 
     os.makedirs(output_directory, exist_ok=True)
 

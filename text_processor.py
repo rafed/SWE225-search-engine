@@ -2,27 +2,12 @@ import re
 from nltk.stem import PorterStemmer, SnowballStemmer
 
 def tokenize(text):
-    lower_case_words = []
-    try:
-        all_words = re.split("[^a-zA-Z0-9]+", text)
-        for word in all_words:
-            if len(word) > 0:
-                lower_case_words.append(word.lower())
-    except Exception as e:
-        print(e)
-    
-    return lower_case_words
+    return [word.lower() for word in re.findall(r"[a-zA-Z0-9]+", text)]
 
 
 def stem_words(words):
-    # stemmer = PorterStemmer()
     stemmer = SnowballStemmer('english')
-
-    stemmed_words = []
-    for word in words:
-        stemmed_words.append(stemmer.stem(word))
-
-    return stemmed_words
+    return [stemmer.stem(word) for word in words]
 
 
 if __name__ == '__main__':

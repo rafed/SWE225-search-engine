@@ -5,7 +5,7 @@ import os
 from collections import defaultdict
 import orjson
 
-NUM_SHARDS = 10
+NUM_SHARDS = 20
 MAX_COUNT_IN_MEM = 500000
 
 class DistDict:
@@ -21,7 +21,7 @@ class DistDict:
             return cls._instances[db_name]
 
     def _init_db(self, db_name="db"):
-        self.db_path = "distdict_" + db_name
+        self.db_path = "data/distdict_" + db_name
         os.makedirs(self.db_path, exist_ok=True)
         self.memory_dict = defaultdict(list)
         self.lock = threading.Lock()

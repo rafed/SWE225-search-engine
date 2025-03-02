@@ -2,11 +2,14 @@ from text_processor import tokenize, stem_words
 from distdict import DistDict
 import math
 from collections import defaultdict
-import json
-import pickle
 import time
+from pathlib import Path
+import orjson
 
 db = DistDict()
+urls = defaultdict(list, orjson.loads(
+    Path('data/url_mapping.json').read_bytes()
+))
 
 def compute_query_tf(query_terms):
     term_counts = defaultdict(int)
@@ -31,17 +34,15 @@ def search(query_terms, idf_dict, doc_norms, top_k=10):
     query_norm = math.sqrt(sum(val ** 2 for val in query_tfidf.values()))
     
     doc_scores = defaultdict(float)
+
     for term in query_tfidf.keys():
         postings = db.get(term)
         for (doc_id, tfidf_score) in postings:
             doc_scores[doc_id] += query_tfidf[term] * float(tfidf_score)
     
-    with open('url_mapping.pkl', 'rb') as pkl_file:
-        urls = pickle.load(pkl_file)
-    
     results = []
     for doc_id in doc_scores:
-        similarity = cosine_similarity(query_tfidf, doc_scores[doc_id], doc_norms.get(doc_id, 0), query_norm)
+        similarity = cosine_similarity(query_tfidf, doc_scores[doc_id], doc_norms[doc_id], query_norm)
         url = [u for u, d in urls.items() if d == doc_id]
         results.append((similarity, doc_id, url))
     
@@ -50,10 +51,9 @@ def search(query_terms, idf_dict, doc_norms, top_k=10):
 
 
 if __name__ == '__main__':
-    with open('idf_values.json', 'r', encoding='utf-8') as f:
-        idf_dict = json.load(f)
-    with open('doc_norms.json', 'r', encoding='utf-8') as f:
-        doc_norms = json.load(f)
+    idf_dict = orjson.loads(Path('data/idf_values.json').read_bytes())
+    doc_norms = orjson.loads(Path('data/doc_norms.json').read_bytes())
+    doc_norms = defaultdict(int, {int(k): v for k, v in doc_norms.items()})
 
     query = input("Please enter your query: ")
     start_time = time.time()
