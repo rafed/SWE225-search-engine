@@ -1,13 +1,13 @@
 import os
 import json
-import pickle
-import collections
 from distdict import DistDict
 from collections import defaultdict
 import math
 from tqdm import tqdm
+import orjson
+from pathlib import Path
 
-db = DistDict('mydb_rafed')
+db = DistDict()
 
 WEIGHTS = {
     "title": 3.0,
@@ -50,9 +50,10 @@ def document_generator(folder_path):
                 yield doc_id, sections
                 doc_id += 1 
 
-def compute_df(document_generator):
+def compute_df_idf(document_generator):
     df_counts = defaultdict(int)
     total_docs = 0
+    idf_dict = {}
 
     for doc_id, sections in document_generator():
         unique_terms = set()
@@ -65,7 +66,12 @@ def compute_df(document_generator):
         
         total_docs += 1
 
-    return df_counts, total_docs
+    for term, df in df_counts.items():
+        idf_dict[term] = math.log(total_docs / df) + 1
+
+    Path('data/idf_values.json').write_bytes(orjson.dumps(idf_dict))
+
+    return idf_dict, total_docs
 
 def compute_tf(sections):
     weighted_tf = defaultdict(float)
@@ -80,16 +86,21 @@ def compute_tf(sections):
 
     return {term: freq / total_weighted_terms for term, freq in weighted_tf.items()}
 
-def compute_tf_idf(document_generator, df_counts, total_docs):
+def compute_tf_idf(document_generator, idf_dict, total_docs):
+    doc_norms = defaultdict(float)
     for doc_id, sections in tqdm(document_generator(), desc="Computing TF-IDF", total=total_docs):
         tf = compute_tf(sections)
 
         tfidf_scores = {
-            term: tf[term] * (math.log(total_docs / df_counts[term]) + 1)
+            term: tf[term] * idf_dict.get(term, 0)
             for term in tf
         }
 
         create_inverted_index(doc_id, tfidf_scores)
+
+        doc_norms[doc_id] = math.sqrt(sum(score ** 2 for score in tfidf_scores.values()))
+    
+    Path('data/doc_norms.json').write_bytes(orjson.dumps(doc_norms))
 
 def create_inverted_index(doc_id, tfidf_scores):
     for term, value in tfidf_scores.items():
@@ -97,14 +108,12 @@ def create_inverted_index(doc_id, tfidf_scores):
             db.put(term, doc_id, f"{value:.4f}")
 
 if __name__ == '__main__':
-    folder_path = "processed_files"
+    folder_path = "data/processed_files"
     global urls
 
-    df_counts, total_docs = compute_df(lambda: document_generator(folder_path))
-    compute_tf_idf(lambda: document_generator(folder_path), df_counts, total_docs)
+    idf_dict, total_docs = compute_df_idf(lambda: document_generator(folder_path))
+    compute_tf_idf(lambda: document_generator(folder_path), idf_dict, total_docs)
 
     db.flush()
 
-    print(urls)
-    with open('url_mapping.pkl', 'wb') as pkl_file:
-        pickle.dump(urls, pkl_file)
+    Path('data/url_mapping.json').write_bytes(orjson.dumps(urls))
