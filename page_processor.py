@@ -54,6 +54,9 @@ def process_files(input_directory, output_directory):
                 continue
             all_tokens = []
             for text in texts:
+                if text is None:
+                    print(f"Detected URL IS : {url}")
+                    continue
                 tokens = tokenize(text)
                 stemmed_tokens = stem_words(tokens)
                 all_tokens.extend(stemmed_tokens)
