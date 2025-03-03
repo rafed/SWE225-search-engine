@@ -181,8 +181,10 @@ cython_debug/
 processed_files
 DEV
 fingerprints
+processed_files.zip
 processed_files/
 processed_files-old/
+processed_files-old2/
 out.txt
 distdict_*
 *.pkl
