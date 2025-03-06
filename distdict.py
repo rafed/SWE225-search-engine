@@ -4,8 +4,9 @@ from pathlib import Path
 import os
 from collections import defaultdict
 import orjson
+from functools import lru_cache
 
-NUM_SHARDS = 20
+NUM_SHARDS = 600
 MAX_COUNT_IN_MEM = 500000
 
 class DistDict:
@@ -26,6 +27,7 @@ class DistDict:
         self.memory_dict = defaultdict(list)
         self.lock = threading.Lock()
         self.counter = 0
+        self._cache_most_common_words()
 
     def _get_shard_id(self, term, num_shards = NUM_SHARDS):
         return int(hashlib.md5(term.encode()).hexdigest(), 16) % num_shards
@@ -69,6 +71,7 @@ class DistDict:
             if self.counter % MAX_COUNT_IN_MEM == 0:
                 self._flush_to_disk()
     
+    @lru_cache(maxsize=5000)
     def get(self, word: str) -> list:
         # self._flush_to_disk()
         shard_id = self._get_shard_id(word)
@@ -77,3 +80,11 @@ class DistDict:
     
     def flush(self):
         self._flush_to_disk()
+
+    def _cache_most_common_words(self, n=1000):
+        with open("data/top_k_words.txt", "r") as f:
+            top_k_words = f.readlines()
+
+        for word in top_k_words[:n]:
+            self.get(word)
+                
