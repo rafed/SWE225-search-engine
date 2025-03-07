@@ -1,13 +1,14 @@
 import os
 import json
-from distdict import DistDict
+# from distdict import DistDict
+from diskdict import DiskDict
 from collections import defaultdict
 import math
 from tqdm import tqdm
 import orjson
 from pathlib import Path
 
-db = DistDict()
+db = DiskDict()
 
 WEIGHTS = {
     "title": 3.0,
@@ -100,12 +101,13 @@ def compute_tf_idf(document_generator, idf_dict, total_docs):
 
         doc_norms[str(doc_id)] = math.sqrt(sum(score ** 2 for score in tfidf_scores.values()))
     
-    Path('data/doc_norms.json').write_bytes(orjson.dumps(doc_norms))
+    d = {str(k):v for k,v in doc_norms.items()}
+    Path('data/doc_norms.json').write_bytes(orjson.dumps(d))
 
 def create_inverted_index(doc_id, tfidf_scores):
     for term, value in tfidf_scores.items():
         if value > 0:
-            db.put(term, doc_id, f"{value:.4f}")
+            db.put(term, (doc_id, f"{value:.4f}"))
 
 if __name__ == '__main__':
     folder_path = "data/processed_files"
@@ -114,6 +116,6 @@ if __name__ == '__main__':
     idf_dict, total_docs = compute_df_idf(lambda: document_generator(folder_path))
     compute_tf_idf(lambda: document_generator(folder_path), idf_dict, total_docs)
 
-    db.flush()
+    db.close()
 
     Path('data/url_mapping.json').write_bytes(orjson.dumps(urls))
