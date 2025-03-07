@@ -102,10 +102,11 @@ def search(query, top_k=10):
                 #weighted average
                 if doc_id in urls:
                     page_rank_value = urls[doc_id][1]
-                    weightedSimilarity =  ((similarity * tf_idf_weight) + (page_rank_value * page_rank_weight )) / (tf_idf_weight + page_rank_weight)
+                    
                 else:
                     page_rank_value = 0
-                    weightedSimilarity =  similarity
+                    
+                weightedSimilarity =  ((similarity * tf_idf_weight) + (page_rank_value * page_rank_weight )) / (tf_idf_weight + page_rank_weight)
 
                 #url = urls.get(doc_id, [])
                 url = urls.get(doc_id, [])[0] or []
