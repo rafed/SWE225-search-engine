@@ -13,6 +13,7 @@ import re
 import ipaddress
 
 simhash = SimhashManager()
+urls_set = set()
 
 def get_file_content(filepath):
     encoding_type = ''
@@ -41,6 +42,11 @@ def process_files(input_directory, output_directory):
         url, content = get_file_content(filepath)
         if simhash.exists_duplicate(url, content):
             continue
+
+        if url in urls_set:
+            continue
+
+        urls_set.add(url)
 
         content_dict = {}
         content_dict['url'] = url

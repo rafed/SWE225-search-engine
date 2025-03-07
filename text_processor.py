@@ -2,6 +2,8 @@ import re
 from nltk.stem import PorterStemmer, SnowballStemmer
 
 def tokenize(text):
+    if text is None:
+        return []
     return [word.lower() for word in re.findall(r"[a-zA-Z0-9]+", text)]
 
 
