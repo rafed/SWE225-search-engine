@@ -42,8 +42,9 @@ def compute_doc_scores(term, query_tfidf):
     local_scores = defaultdict(float)
     
     for doc_id, tfidf_score in postings:
-        if urls[doc_id][1] >= 0.00010255093068279621:
-            local_scores[doc_id] += term_score * float(tfidf_score)
+        if doc_id in urls:
+            if urls[doc_id][1] >= 0.00010255093068279621:
+                local_scores[doc_id] += term_score * float(tfidf_score)
 
     return local_scores
 
@@ -68,6 +69,9 @@ def search(query, top_k=10):
 
     heap = []  # Min-heap: (score, doc_id, url)
     min_score = 0.0  # Minimum score to enter the top-k
+
+    tf_idf_weight = 0.8
+    page_rank_weight = 0.2
 
     with ThreadPoolExecutor() as executor:
         term_results = executor.map(
@@ -95,16 +99,24 @@ def search(query, top_k=10):
                     doc_scores[doc_id], doc_norms[doc_id], query_norm
                 )
 
+                #weighted average
+                if doc_id in urls:
+                    page_rank_value = urls[doc_id][1]
+                    weightedSimilarity =  ((similarity * tf_idf_weight) + (page_rank_value * page_rank_weight )) / (tf_idf_weight + page_rank_weight)
+                else:
+                    page_rank_value = 0
+                    weightedSimilarity =  similarity
+
                 #url = urls.get(doc_id, [])
                 url = urls.get(doc_id, [])[0] or []
 
                 if len(heap) < top_k:
-                    heappush(heap, (similarity, doc_id, url))
+                    heappush(heap, (weightedSimilarity, doc_id, url))
                     if len(heap) == top_k:
                         min_score = heap[0][0]  # Update min_score when heap is full
-                elif similarity > min_score:
+                elif weightedSimilarity > min_score:
                     heappop(heap)  # Remove lowest score
-                    heappush(heap, (similarity, doc_id, url))
+                    heappush(heap, (weightedSimilarity,doc_id, url))
                     min_score = heap[0][0]  # Update min_score
 
     results = []
@@ -112,6 +124,7 @@ def search(query, top_k=10):
         results.append(heappop(heap))
     results.sort(reverse=True)
     return results
+
 
 if __name__ == '__main__':
     try:
