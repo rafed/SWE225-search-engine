@@ -12,6 +12,10 @@ from collections import defaultdict
 import orjson
 from decimal import Decimal
 
+def getPageRanks():
+    with open('data/url_mapping_with_pagerank.json', 'r') as infile:
+        pageRanks = json.load(infile)
+        return pageRanks
 
 def standardize_url(url: str) -> str:
     try:
@@ -35,7 +39,7 @@ def pagerank(i: list[dict[str, str]]):
     G = nx.DiGraph()
     print("Phase 1: Read URLs")
     for e in tqdm(range(len(i))):
-        nurl = standardize_url(i[e]["url"])
+        nurl = (i[e]["url"])
         if nurl is None:
             raise ValueError("Error: input URL is invalid, this cannot happen")
         G.add_node(nurl)
@@ -45,13 +49,11 @@ def pagerank(i: list[dict[str, str]]):
     for v in tqdm(range(len(i))):
         e = i[v]
         url = e["url"]
-        #content = BeautifulSoup(e["content"])
         anchors = e["anchor"]
         for a in anchors:
-            #v = a["href"]
             if not a.startswith("http"):
                 continue
-            nurl = standardize_url(a)
+            nurl = (a)
             if nurl is None:
                 continue
             if not nurl in allnodes:
@@ -60,10 +62,7 @@ def pagerank(i: list[dict[str, str]]):
     print("Phase 3: Run PageRank")
     R = nx.pagerank(G, 0.85)
     return R
-    #return sorted(R.items(), key=lambda i: i[1], reverse=True)
-
-# For testing purposes only, assumes the files are in ../../Downloads/DEV
-#and os.environ.get("RUN_PAGERANK_TEST")
+    
 if __name__ == "__main__":
     warnings.filterwarnings("ignore", category=XMLParsedAsHTMLWarning)
     warnings.filterwarnings("ignore", category=GuessedAtParserWarning)
@@ -89,8 +88,10 @@ if __name__ == "__main__":
             else:
                 notFoundUrls = notFoundUrls + 1
                 dataWithPageRank[doc_url] = (doc_id, 0)
+                print(doc_url)
 
-        Path('data/url_mapping_with_pagerank.json').write_bytes(orjson.dumps(dataWithPageRank))
+        sorted_data = dict(sorted(dataWithPageRank.items(), key=lambda item: float(item[1][1]), reverse=True))
+        Path('data/url_mapping_with_pagerank.json').write_bytes(orjson.dumps(sorted_data, option=orjson.OPT_INDENT_2))
         print(f"not found urls: {notFoundUrls}")
 
         
