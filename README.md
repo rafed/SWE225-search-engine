@@ -1,5 +1,14 @@
 # Search Engine Project
 
+## How to run
+
+```bash
+python page_processor.py developer/DEV
+python indexer.py
+python top_k_words.py
+python query_processor.py
+```
+
 ## Overview
 This project is to build a complete search engine over the course of three milestones. Groups of 1-3 members will work collaboratively to design and implement the system. Groups with at least one CS or SE student are required to complete the search engine option. The final deliverable will include an indexer and a search component capable of processing queries and ranking results efficiently.
 

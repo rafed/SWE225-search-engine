@@ -9,7 +9,6 @@ import orjson
 from pathlib import Path
 
 db = DiskDict()
-# db = DistDict()
 
 WEIGHTS = {
     "title": 3.0,
@@ -118,6 +117,5 @@ if __name__ == '__main__':
     compute_tf_idf(lambda: document_generator(folder_path), idf_dict, total_docs)
 
     db.close()
-    # db.flush()
 
     Path('data/url_mapping.json').write_bytes(orjson.dumps(urls))
