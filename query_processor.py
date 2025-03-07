@@ -7,15 +7,20 @@ from pathlib import Path
 import orjson
 from concurrent.futures import ThreadPoolExecutor
 from heapq import heappush, heappop
+import pagerank as pr
 
 db = DiskDict()
 db.load_top_k_words_in_cache()
-urls = defaultdict(list, orjson.loads(Path('data/url_mapping.json').read_bytes()))
-urls = {v: k for k, v in urls.items()}
+urls = defaultdict(list, orjson.loads(Path('data/url_mapping_with_pagerank.json').read_bytes()))
+#urls = {v: k for k, v in urls.items()}
+urls={value[0]: [key, value[1]] for key, value in urls.items()}
+
 
 idf_dict = orjson.loads(Path('data/idf_values.json').read_bytes())
 doc_norms = orjson.loads(Path('data/doc_norms.json').read_bytes())
 doc_norms = defaultdict(int, {int(k): v for k, v in doc_norms.items()})
+
+pageRanks = pr.getPageRanks()
 
 def compute_query_tf(query_terms):
     term_counts = Counter(query_terms)
@@ -37,7 +42,8 @@ def compute_doc_scores(term, query_tfidf):
     local_scores = defaultdict(float)
     
     for doc_id, tfidf_score in postings:
-        local_scores[doc_id] += term_score * float(tfidf_score)
+        if urls[doc_id][1] > 0.000005823016:
+            local_scores[doc_id] += term_score * float(tfidf_score)
 
     return local_scores
 
@@ -89,7 +95,8 @@ def search(query, top_k=10):
                     doc_scores[doc_id], doc_norms[doc_id], query_norm
                 )
 
-                url = urls.get(doc_id, [])
+                #url = urls.get(doc_id, [])
+                url = urls.get(doc_id, [])[0] or []
 
                 if len(heap) < top_k:
                     heappush(heap, (similarity, doc_id, url))
@@ -117,7 +124,7 @@ if __name__ == '__main__':
             
             print("\nTop results:")
             for score, doc_id, url in top_results:
-                print(f"Doc ID: {doc_id}, URL: {url}, Similarity: {score:.4f}")
+                print(f"Doc ID: {doc_id}, URL: {url}, Similarity: {score:.4f}, pageRank:{urls[doc_id][1]:.12f}")
             
             elapsed_time = end_time - start_time
             print(f"Elapsed time: {elapsed_time:.4f} seconds")

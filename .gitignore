@@ -192,3 +192,4 @@ distdict_*
 *.pkl
 data/
 env_win/
+testPageRank/

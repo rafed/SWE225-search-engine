@@ -84,7 +84,8 @@ if __name__ == "__main__":
 
         for doc_url,doc_id in tqdm(data.items(), total=len(data), desc="Processing Items"):
             if doc_url in Rdict:
-                dataWithPageRank[doc_url] = (doc_id,f"{Rdict[doc_url]:.12f}")
+                #dataWithPageRank[doc_url] = (doc_id,f"{Rdict[doc_url]:.12f}")
+                dataWithPageRank[doc_url] = (doc_id, Rdict[doc_url])
             else:
                 notFoundUrls = notFoundUrls + 1
                 dataWithPageRank[doc_url] = (doc_id, 0)
