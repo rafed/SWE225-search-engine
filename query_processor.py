@@ -9,6 +9,7 @@ from concurrent.futures import ThreadPoolExecutor
 from heapq import heappush, heappop
 import pagerank as pr
 
+# Initialize global data structures
 db = DiskDict()
 db.load_top_k_words_in_cache()
 urls = defaultdict(list, orjson.loads(Path('data/url_mapping_with_pagerank.json').read_bytes()))
@@ -49,9 +50,8 @@ def compute_doc_scores(term, query_tfidf):
 
 def estimate_lower_bound(doc_score, remaining_terms, query_tfidf, doc_norm):
     """Estimate a lower bound on the final score for pruning."""
-    # Assume remaining terms contribute their maximum possible score
     max_remaining = sum(
-        query_tfidf[term] * doc_norm  # Upper bound: tfidf_score <= doc_norm
+        query_tfidf[term] * doc_norm
         for term in remaining_terms
     )
     return doc_score + max_remaining
@@ -63,15 +63,14 @@ def search(query, top_k=10):
     query_tfidf = compute_query_tfidf(stemmed_tokens)
     query_norm = math.sqrt(sum(val ** 2 for val in query_tfidf.values()))
     
-    doc_scores = defaultdict(float)
+    doc_scores = defaultdict(float)  # Accumulate dot products
     processed_terms = set()
-
-    heap = []  # Min-heap: (score, doc_id, url)
-    min_score = 0.0  # Minimum score to enter the top-k
+    best_scores = {}  # {doc_id: (similarity, url)} for tracking best score per doc
 
     tf_idf_weight = 0.8
     page_rank_weight = 0.2
 
+    # Process terms in parallel
     with ThreadPoolExecutor() as executor:
         term_results = executor.map(
             lambda term: (term, compute_doc_scores(term, query_tfidf)),
@@ -84,34 +83,40 @@ def search(query, top_k=10):
 
             # Update document scores
             for doc_id, score in local_scores.items():
-                doc_scores[doc_id] += score
+                doc_scores[doc_id] += score  # Accumulate partial dot product
 
+                # Prune based on lower bound
                 lower_bound = estimate_lower_bound(
                     doc_scores[doc_id], remaining_terms, query_tfidf, doc_norms[doc_id]
                 )
-
-                # Prune if the lower bound can't beat the current min_score
-                if len(heap) >= top_k and lower_bound <= min_score:
-                    continue
-
+                # We'll use min_score later, after building best_scores
+                # For now, just compute similarity
                 similarity = cosine_similarity(
                     doc_scores[doc_id], doc_norms[doc_id], query_norm
                 )
-                    
                 weightedSimilarity =  ((similarity * tf_idf_weight) + (urls[doc_id][1] * page_rank_weight )) / (tf_idf_weight + page_rank_weight)
 
                 #url = urls.get(doc_id, [])
                 url = urls.get(doc_id, [])[0] or []
 
-                if len(heap) < top_k:
-                    heappush(heap, (weightedSimilarity, doc_id, url))
-                    if len(heap) == top_k:
-                        min_score = heap[0][0]  # Update min_score when heap is full
-                elif weightedSimilarity > min_score:
-                    heappop(heap)  # Remove lowest score
-                    heappush(heap, (weightedSimilarity,doc_id, url))
-                    min_score = heap[0][0]  # Update min_score
+                # Update best score for this doc_id
+                if doc_id not in best_scores or weightedSimilarity > best_scores[doc_id][0]:
+                    best_scores[doc_id] = (weightedSimilarity, url)
 
+    # Build the top-k heap from best_scores
+    heap = []
+    min_score = 0.0
+    for doc_id, (weightedSimilarity, url) in best_scores.items():
+        if len(heap) < top_k:
+            heappush(heap, (weightedSimilarity, doc_id, url))
+            if len(heap) == top_k:
+                min_score = heap[0][0]
+        elif weightedSimilarity > min_score:
+            heappop(heap)
+            heappush(heap, (weightedSimilarity, doc_id, url))
+            min_score = heap[0][0]
+
+    # Extract results from heap
     results = []
     while heap:
         results.append(heappop(heap))
@@ -120,6 +125,7 @@ def search(query, top_k=10):
 
 
 if __name__ == '__main__':
+    print("Starting query processor...")
     try:
         while True:
             query = input("Please enter your query: ")
