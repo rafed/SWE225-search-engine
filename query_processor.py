@@ -42,9 +42,8 @@ def compute_doc_scores(term, query_tfidf):
     local_scores = defaultdict(float)
     
     for doc_id, tfidf_score in postings:
-        if doc_id in urls:
-            if urls[doc_id][1] >= 0.00010255093068279621:
-                local_scores[doc_id] += term_score * float(tfidf_score)
+        if urls[doc_id][1] >= 0.000010712589241379107 :
+            local_scores[doc_id] += term_score * float(tfidf_score)
 
     return local_scores
 
@@ -98,15 +97,8 @@ def search(query, top_k=10):
                 similarity = cosine_similarity(
                     doc_scores[doc_id], doc_norms[doc_id], query_norm
                 )
-
-                #weighted average
-                if doc_id in urls:
-                    page_rank_value = urls[doc_id][1]
                     
-                else:
-                    page_rank_value = 0
-                    
-                weightedSimilarity =  ((similarity * tf_idf_weight) + (page_rank_value * page_rank_weight )) / (tf_idf_weight + page_rank_weight)
+                weightedSimilarity =  ((similarity * tf_idf_weight) + (urls[doc_id][1] * page_rank_weight )) / (tf_idf_weight + page_rank_weight)
 
                 #url = urls.get(doc_id, [])
                 url = urls.get(doc_id, [])[0] or []

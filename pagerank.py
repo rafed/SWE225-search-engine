@@ -92,7 +92,7 @@ if __name__ == "__main__":
                 print(doc_url)
 
         sorted_data = dict(sorted(dataWithPageRank.items(), key=lambda item: float(item[1][1]), reverse=True))
-        #sorted_data = dict(list(sorted_data.items())[:-15000])
+        print(f"threshold is: {list(sorted_data.items())[-15000][1]}")
         
         Path('data/url_mapping_with_pagerank.json').write_bytes(orjson.dumps(sorted_data, option=orjson.OPT_INDENT_2))
         print(f"not found urls: {notFoundUrls}")
