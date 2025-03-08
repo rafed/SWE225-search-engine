@@ -6,7 +6,7 @@ class SimhashManager:
     _shared_state = {}  # Borg shared state
     _lock = threading.Lock()
 
-    def __init__(self, db_path="./fingerprints"):
+    def __init__(self, db_path="./data/fingerprints"):
         self.__dict__ = self._shared_state
         if not hasattr(self, "initialized"):
             with self._lock:
