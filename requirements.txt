@@ -11,3 +11,4 @@ rocksdict==0.3.25
 networkx==3.4.2
 orjson==3.10.15
 simhash-pybind==0.0.3
+Flask==3.1.0
