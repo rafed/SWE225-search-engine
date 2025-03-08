@@ -118,7 +118,7 @@ if __name__ == '__main__':
             query = input("Please enter your query: ")
 
             start_time = time.time()
-            top_results = search(query)
+            top_results = search(query, top_k=5)
             end_time = time.time()
             
             print("\nTop results:")
@@ -126,7 +126,7 @@ if __name__ == '__main__':
                 print(f"Doc ID: {doc_id}, URL: {url}, Similarity: {score:.4f}")
             
             elapsed_time = end_time - start_time
-            print(f"Elapsed time: {elapsed_time:.4f} seconds")
+            print(f"Elapsed time: {elapsed_time * 1000:.2f} ms")
 
     except KeyboardInterrupt:
         print("Exiting...")
