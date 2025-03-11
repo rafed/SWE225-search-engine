@@ -143,6 +143,7 @@ venv/
 ENV/
 env.bak/
 venv.bak/
+afrinaEnv/
 
 # Spyder project settings
 .spyderproject
@@ -178,6 +179,7 @@ cython_debug/
 # PyPI configuration file
 .pypirc
 
+#input files
 processed_files
 DEV
 fingerprints
@@ -190,3 +192,4 @@ distdict_*
 *.pkl
 data/
 env_win/
+testPageRank/

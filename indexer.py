@@ -99,7 +99,7 @@ def compute_tf_idf(document_generator, idf_dict, total_docs):
 
         create_inverted_index(doc_id, tfidf_scores)
 
-        doc_norms[doc_id] = math.sqrt(sum(score ** 2 for score in tfidf_scores.values()))
+        doc_norms[str(doc_id)] = math.sqrt(sum(score ** 2 for score in tfidf_scores.values()))
     
     d = {str(k):v for k,v in doc_norms.items()}
     Path('data/doc_norms.json').write_bytes(orjson.dumps(d))
