@@ -5,6 +5,7 @@
 ```bash
 python page_processor.py developer/DEV
 python indexer.py
+python pagerank.py
 python top_k_words.py
 python query_processor.py
 ```
