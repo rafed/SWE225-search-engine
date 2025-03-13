@@ -8,6 +8,7 @@ import orjson
 from concurrent.futures import ThreadPoolExecutor
 from heapq import heappush, heappop
 import pagerank as pr
+import indexer as indx
 
 # Initialize global data structures
 db = DiskDict()
@@ -20,6 +21,7 @@ urls={value[0]: [key, value[1]] for key, value in urls.items()}
 idf_dict = orjson.loads(Path('data/idf_values.json').read_bytes())
 doc_norms = orjson.loads(Path('data/doc_norms.json').read_bytes())
 doc_norms = defaultdict(int, {int(k): v for k, v in doc_norms.items()})
+doc_len_norm_bm25 = orjson.loads(Path('data/doc_len_norm_bm25.json').read_bytes())
 
 pageRanks = pr.getPageRanks()
 
@@ -123,6 +125,72 @@ def search(query, top_k=10):
     results.sort(reverse=True)
     return results
 
+def compute_bm25(query, doc_id, k1):
+    """
+    Compute the BM25 score for a document with respect to a given query.
+    """
+    score = 0
+    for term in query:
+        if term not in idf_dict:
+            continue
+
+        f = 1  # Term frequency in the document
+        idf = idf_dict[term]  # Compute the IDF for the term
+        doc_len_norm = doc_len_norm_bm25[str(doc_id)][1]  # Length of the document
+
+        # Compute the BM25 component for the term
+        term_score = idf * ((f * (k1 + 1)) / (f + (k1 * doc_len_norm)))
+        score += term_score  # Add the term score to the total score
+
+    return score
+
+def search_using_BM25(query,top_k=10):
+    """
+    Retrieve BM25 scores for the query, and return the top N relevant documents.
+    """
+    avg_doc_len = doc_len_norm_bm25["avg_doc_length"][0]  # Calculate avg doc length
+    num_docs = len(doc_len_norm_bm25) - 1
+    print(num_docs)
+    tokens = tokenize(query)
+    stemmed_tokens = stem_words(tokens)
+    num_threads = 8
+    chunk_size = num_docs // num_threads
+    chunks = [range(i * chunk_size, (i + 1) * chunk_size) for i in range(num_threads)]
+
+    # Handle the last chunk if it has fewer documents
+    if chunks[-1][-1] != num_docs - 1:
+        chunks[-1] = range(chunks[-1].start, num_docs)
+    
+    # Function to compute BM25 score for a chunk of documents
+    def process_chunk(chunk):
+        results = []
+        for doc_id in chunk:
+            # Compute BM25 score for each document in the chunk
+            bm25_score = compute_bm25(stemmed_tokens, doc_id, k1=1.5)
+            results.append((doc_id, urls[doc_id][0], bm25_score))
+        return results
+
+    # Process chunks in parallel using ThreadPoolExecutor
+    with ThreadPoolExecutor(max_workers=num_threads) as executor:
+        results = list(executor.map(process_chunk, chunks))
+
+    # Sort each sublist by BM25 score in descending order and keep only top 10
+    for sublist in results:
+        sublist.sort(key=lambda x: x[2], reverse=True)  # Sort each sublist by BM25 score
+        sublist[:] = sublist[:10]  # Keep only the top 10 documents in each sublist
+
+    # Flatten the sorted and truncated sublists
+    all_scores = []
+    for sublist in results:
+        all_scores.extend(sublist)  # Add the top 10 documents from each sublist
+
+    # Optionally, sort all scores again 
+    all_scores.sort(key=lambda x: x[2], reverse=True)  # Sort by BM25 score in descending order
+    
+    # Return top N documents based on BM25 score
+    return all_scores[:top_k]
+
+
 
 if __name__ == '__main__':
     print("Starting query processor...")
@@ -131,11 +199,12 @@ if __name__ == '__main__':
             query = input("Please enter your query: ")
 
             start_time = time.time()
-            top_results = search(query)
+            #top_results = search(query)
+            top_results = search_using_BM25(query)
             end_time = time.time()
             
             print("\nTop results:")
-            for score, doc_id, url in top_results:
+            for doc_id, url, score in top_results:
                 print(f"Doc ID: {doc_id}, URL: {url}, Similarity: {score:.4f}, pageRank:{urls[doc_id][1]:.12f}")
             
             elapsed_time = end_time - start_time

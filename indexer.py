@@ -21,6 +21,9 @@ WEIGHTS = {
     "bold": 2.0,
     "other_text": 1.0
 }
+#bm25 paramenters
+b=0.75
+avg_doc_length=0
 
 def document_generator(folder_path):
     global urls
@@ -109,13 +112,40 @@ def create_inverted_index(doc_id, tfidf_scores):
         if value > 0:
             db.put(term, (doc_id, f"{value:.4f}"))
 
+def compute_document_length_normalization_bm25(document_generator):
+    total_docs = 0
+    dlength_normalization_dict = defaultdict(lambda: (0, 0.0))
+    sum_doc_length = 0
+
+    for doc_id, sections in tqdm(document_generator(), desc="Computing BM25 doc length", total=total_docs):
+        doc_length = 0
+        for section, term in sections.items():
+            doc_length = doc_length + len(term)
+        dlength_normalization_dict[str(doc_id)]=(doc_length, 0.0)
+        sum_doc_length = sum_doc_length + doc_length
+        total_docs += 1
+        #print(f"{sum_doc_length} {doc_length}")
+
+    avg_doc_length = sum_doc_length / total_docs
+    print(f"Avg is: {avg_doc_length}")
+    for doc_id, value in dlength_normalization_dict.items():
+        dlength_normalization_dict[str(doc_id)]=(value[0], (1 + b - (b * (value[0]/avg_doc_length))))
+
+    dlength_normalization_dict["avg_doc_length"]=(avg_doc_length,0)
+
+
+    Path('data/doc_len_norm_bm25.json').write_bytes(orjson.dumps(dlength_normalization_dict))
+
+
+
 if __name__ == '__main__':
     folder_path = "data/processed_files"
     global urls
 
-    idf_dict, total_docs = compute_df_idf(lambda: document_generator(folder_path))
-    compute_tf_idf(lambda: document_generator(folder_path), idf_dict, total_docs)
+    #idf_dict, total_docs = compute_df_idf(lambda: document_generator(folder_path))
+    #compute_tf_idf(lambda: document_generator(folder_path), idf_dict, total_docs)
 
-    db.close()
+    #db.close()
 
-    Path('data/url_mapping.json').write_bytes(orjson.dumps(urls))
+    #Path('data/url_mapping.json').write_bytes(orjson.dumps(urls))
+    compute_document_length_normalization_bm25(lambda: document_generator(folder_path))
