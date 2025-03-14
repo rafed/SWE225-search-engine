@@ -43,7 +43,7 @@ def compute_doc_scores(term, query_tfidf):
     local_scores = defaultdict(float)
     
     for doc_id, tfidf_score in postings:
-        if urls[doc_id][1] >= 0 :
+        if urls[doc_id][1] > 0 :
             local_scores[doc_id] += term_score * float(tfidf_score)
 
     return local_scores
