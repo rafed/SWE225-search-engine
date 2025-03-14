@@ -22,7 +22,8 @@ WEIGHTS = {
     "other_text": 1.0
 }
 #bm25 paramenters
-b=0.5
+b=0.75
+k1=1.5
 avg_doc_length=0
 
 def document_generator(folder_path):
@@ -90,8 +91,10 @@ def compute_tf(sections):
 
     return {term: freq / total_weighted_terms for term, freq in weighted_tf.items()}
 
-def compute_tf_idf(document_generator, idf_dict, total_docs):
+def compute_tf_idf(document_generator, idf_dict, doc_len_norm_bm25, total_docs):
     doc_norms = defaultdict(float)
+    
+
     for doc_id, sections in tqdm(document_generator(), desc="Computing TF-Only_Now", total=total_docs):
         tf = compute_tf(sections)
 
@@ -100,7 +103,11 @@ def compute_tf_idf(document_generator, idf_dict, total_docs):
         #    for term in tf
         #}
 
-        create_inverted_index(doc_id, tf)
+        term_bm25_scores={}
+        for term, value in tf.items():
+            term_bm25_scores[term] = idf_dict.get(term, 0) * ( (value * (k1+1)) / ( value + ( k1 * doc_len_norm_bm25[str(doc_id)][1])))
+
+        create_inverted_index(doc_id, term_bm25_scores)
 
         #doc_norms[str(doc_id)] = math.sqrt(sum(score ** 2 for score in tfidf_scores.values()))
     
@@ -142,10 +149,12 @@ if __name__ == '__main__':
     folder_path = "data/processed_files"
     global urls
 
+    compute_document_length_normalization_bm25(lambda: document_generator(folder_path))
     idf_dict, total_docs = compute_df_idf(lambda: document_generator(folder_path))
-    compute_tf_idf(lambda: document_generator(folder_path), idf_dict, total_docs)
+    doc_len_norm_bm25 = orjson.loads(Path('data/doc_len_norm_bm25.json').read_bytes())
+    compute_tf_idf(lambda: document_generator(folder_path), idf_dict, doc_len_norm_bm25, total_docs)
 
     db.close()
 
     Path('data/url_mapping.json').write_bytes(orjson.dumps(urls))
-    compute_document_length_normalization_bm25(lambda: document_generator(folder_path))
+    

@@ -125,7 +125,7 @@ def search(query, top_k=10):
     results.sort(reverse=True)
     return results
 
-def compute_bm25(allPostings, stemmed_token, doc_id, k1):
+def compute_bm25(allPostings, stemmed_token, doc_id):
     """
     Compute the BM25 score for a document with respect to a given query.
     """
@@ -139,21 +139,21 @@ def compute_bm25(allPostings, stemmed_token, doc_id, k1):
         posting = allPostings[term]
         #print(posting)
         #print(f"doc: {doc_id}")
-        f=0
-        for id,tf in posting:
+        term_score=0
+        for id,bm_25_score in posting:
             if(id == doc_id):
-                f = float(tf)
+                term_score = float(bm_25_score)
                 break
 
         #print(f"vale is {f}")
         
-        idf = idf_dict[term]  # Compute the IDF for the term
+        #idf = idf_dict[term]  # Compute the IDF for the term
         #print(f"idf: {idf}")
         
-        doc_len_norm = doc_len_norm_bm25[str(doc_id)][1]  # Length of the document
+        #doc_len_norm = doc_len_norm_bm25[str(doc_id)][1]  # Length of the document
 
         # Compute the BM25 component for the term
-        term_score = idf * ((f * (k1 + 1)) / (f + (k1 * doc_len_norm)))
+        #term_score = idf * ((f * (k1 + 1)) / (f + (k1 * doc_len_norm)))
         score += term_score  # Add the term score to the total score
 
     return score
@@ -187,7 +187,7 @@ def search_using_BM25(query,top_k=10):
         for doc_id in chunk:
             if urls[doc_id][1] >= 0.000010797872620231596 :
                 # Compute BM25 score for each document in the chunk
-                bm25_score = compute_bm25(allPostings, stemmed_tokens, doc_id, k1=1.5)
+                bm25_score = compute_bm25(allPostings, stemmed_tokens, doc_id)
                 results.append((doc_id, urls[doc_id][0], bm25_score))
         return results
     
