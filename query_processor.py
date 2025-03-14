@@ -169,7 +169,7 @@ def search_using_BM25(query,top_k=10):
     tokens = tokenize(query)
     stemmed_tokens = stem_words(tokens)
     
-    num_threads = 30
+    num_threads = 10
     chunk_size = num_docs // num_threads
     chunks = [range(i * chunk_size, (i + 1) * chunk_size) for i in range(num_threads)]
 
@@ -185,9 +185,10 @@ def search_using_BM25(query,top_k=10):
     def process_chunk(chunk):
         results = []
         for doc_id in chunk:
-            # Compute BM25 score for each document in the chunk
-            bm25_score = compute_bm25(allPostings, stemmed_tokens, doc_id, k1=1.5)
-            results.append((doc_id, urls[doc_id][0], bm25_score))
+            if urls[doc_id][1] >= 0.000010797872620231596 :
+                # Compute BM25 score for each document in the chunk
+                bm25_score = compute_bm25(allPostings, stemmed_tokens, doc_id, k1=1.5)
+                results.append((doc_id, urls[doc_id][0], bm25_score))
         return results
     
     # Flatten the sorted and truncated sublists
