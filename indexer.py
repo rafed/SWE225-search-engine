@@ -22,7 +22,7 @@ WEIGHTS = {
     "other_text": 1.0
 }
 #bm25 paramenters
-b=0.75
+b=0.5
 avg_doc_length=0
 
 def document_generator(folder_path):
@@ -92,20 +92,20 @@ def compute_tf(sections):
 
 def compute_tf_idf(document_generator, idf_dict, total_docs):
     doc_norms = defaultdict(float)
-    for doc_id, sections in tqdm(document_generator(), desc="Computing TF-IDF", total=total_docs):
+    for doc_id, sections in tqdm(document_generator(), desc="Computing TF-Only_Now", total=total_docs):
         tf = compute_tf(sections)
 
-        tfidf_scores = {
-            term: tf[term] * idf_dict.get(term, 0)
-            for term in tf
-        }
+        #tfidf_scores = {
+        #    term: tf[term] * idf_dict.get(term, 0)
+        #    for term in tf
+        #}
 
-        create_inverted_index(doc_id, tfidf_scores)
+        create_inverted_index(doc_id, tf)
 
-        doc_norms[str(doc_id)] = math.sqrt(sum(score ** 2 for score in tfidf_scores.values()))
+        #doc_norms[str(doc_id)] = math.sqrt(sum(score ** 2 for score in tfidf_scores.values()))
     
-    d = {str(k):v for k,v in doc_norms.items()}
-    Path('data/doc_norms.json').write_bytes(orjson.dumps(d))
+    #d = {str(k):v for k,v in doc_norms.items()}
+    #Path('data/doc_norms.json').write_bytes(orjson.dumps(d))
 
 def create_inverted_index(doc_id, tfidf_scores):
     for term, value in tfidf_scores.items():
@@ -142,10 +142,10 @@ if __name__ == '__main__':
     folder_path = "data/processed_files"
     global urls
 
-    #idf_dict, total_docs = compute_df_idf(lambda: document_generator(folder_path))
-    #compute_tf_idf(lambda: document_generator(folder_path), idf_dict, total_docs)
+    idf_dict, total_docs = compute_df_idf(lambda: document_generator(folder_path))
+    compute_tf_idf(lambda: document_generator(folder_path), idf_dict, total_docs)
 
-    #db.close()
+    db.close()
 
-    #Path('data/url_mapping.json').write_bytes(orjson.dumps(urls))
+    Path('data/url_mapping.json').write_bytes(orjson.dumps(urls))
     compute_document_length_normalization_bm25(lambda: document_generator(folder_path))

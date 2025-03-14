@@ -19,8 +19,8 @@ urls={value[0]: [key, value[1]] for key, value in urls.items()}
 
 
 idf_dict = orjson.loads(Path('data/idf_values.json').read_bytes())
-doc_norms = orjson.loads(Path('data/doc_norms.json').read_bytes())
-doc_norms = defaultdict(int, {int(k): v for k, v in doc_norms.items()})
+#doc_norms = orjson.loads(Path('data/doc_norms.json').read_bytes())
+#doc_norms = defaultdict(int, {int(k): v for k, v in doc_norms.items()})
 doc_len_norm_bm25 = orjson.loads(Path('data/doc_len_norm_bm25.json').read_bytes())
 
 pageRanks = pr.getPageRanks()
@@ -125,17 +125,31 @@ def search(query, top_k=10):
     results.sort(reverse=True)
     return results
 
-def compute_bm25(query, doc_id, k1):
+def compute_bm25(allPostings, stemmed_token, doc_id, k1):
     """
     Compute the BM25 score for a document with respect to a given query.
     """
     score = 0
-    for term in query:
+    for term in stemmed_token:
+        #print(term)
         if term not in idf_dict:
+            print("term not found")
             continue
 
-        f = 1  # Term frequency in the document
+        posting = allPostings[term]
+        #print(posting)
+        #print(f"doc: {doc_id}")
+        f=0
+        for id,tf in posting:
+            if(id == doc_id):
+                f = float(tf)
+                break
+
+        #print(f"vale is {f}")
+        
         idf = idf_dict[term]  # Compute the IDF for the term
+        #print(f"idf: {idf}")
+        
         doc_len_norm = doc_len_norm_bm25[str(doc_id)][1]  # Length of the document
 
         # Compute the BM25 component for the term
@@ -149,47 +163,52 @@ def search_using_BM25(query,top_k=10):
     Retrieve BM25 scores for the query, and return the top N relevant documents.
     """
     avg_doc_len = doc_len_norm_bm25["avg_doc_length"][0]  # Calculate avg doc length
+    print(avg_doc_len)
     num_docs = len(doc_len_norm_bm25) - 1
     print(num_docs)
     tokens = tokenize(query)
     stemmed_tokens = stem_words(tokens)
-    num_threads = 8
+    
+    num_threads = 30
     chunk_size = num_docs // num_threads
     chunks = [range(i * chunk_size, (i + 1) * chunk_size) for i in range(num_threads)]
 
     # Handle the last chunk if it has fewer documents
     if chunks[-1][-1] != num_docs - 1:
         chunks[-1] = range(chunks[-1].start, num_docs)
-    
+
+    allPostings = {}
+    for term in stemmed_tokens:
+        allPostings[term] = db.get(term)
+
     # Function to compute BM25 score for a chunk of documents
     def process_chunk(chunk):
         results = []
         for doc_id in chunk:
             # Compute BM25 score for each document in the chunk
-            bm25_score = compute_bm25(stemmed_tokens, doc_id, k1=1.5)
+            bm25_score = compute_bm25(allPostings, stemmed_tokens, doc_id, k1=1.5)
             results.append((doc_id, urls[doc_id][0], bm25_score))
         return results
-
+    
+    # Flatten the sorted and truncated sublists
+    all_scores = []
     # Process chunks in parallel using ThreadPoolExecutor
     with ThreadPoolExecutor(max_workers=num_threads) as executor:
         results = list(executor.map(process_chunk, chunks))
 
-    # Sort each sublist by BM25 score in descending order and keep only top 10
-    for sublist in results:
-        sublist.sort(key=lambda x: x[2], reverse=True)  # Sort each sublist by BM25 score
-        sublist[:] = sublist[:10]  # Keep only the top 10 documents in each sublist
+        # Sort each sublist by BM25 score in descending order and keep only top 10
+        for sublist in results:
+            sublist.sort(key=lambda x: x[2], reverse=True)  # Sort each sublist by BM25 score
+            sublist[:] = sublist[:10]
 
-    # Flatten the sorted and truncated sublists
-    all_scores = []
-    for sublist in results:
-        all_scores.extend(sublist)  # Add the top 10 documents from each sublist
+        for sublist in results:
+            all_scores.extend(sublist)  # Add the top 10 documents from each sublist
 
     # Optionally, sort all scores again 
     all_scores.sort(key=lambda x: x[2], reverse=True)  # Sort by BM25 score in descending order
     
     # Return top N documents based on BM25 score
     return all_scores[:top_k]
-
 
 
 if __name__ == '__main__':
