@@ -79,19 +79,10 @@ def search(query, top_k=10):
 
         for term, local_scores in term_results:
             processed_terms.add(term)
-            remaining_terms = set(query_tfidf.keys()) - processed_terms
 
-            # Update document scores
             for doc_id, score in local_scores.items():
                 doc_scores[doc_id] += score  # Accumulate partial dot product
 
-                # Prune based on upper bound
-                upper_bound = estimate_lower_bound(
-                    doc_scores[doc_id], remaining_terms, query_tfidf, doc_norms[doc_id]
-                )
-                # Note: We only use the bound for pruning later when heap is full
-
-                # Compute exact similarity
                 similarity = cosine_similarity(
                     doc_scores[doc_id], doc_norms[doc_id], query_norm
                 )

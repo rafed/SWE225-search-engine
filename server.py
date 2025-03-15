@@ -13,7 +13,7 @@ def search_endpoint():
     query = request.args.get('q')
 
     start_time = time.time()
-    results = search(query)
+    results = search(query, top_k=5)
     end_time = time.time()
 
     return jsonify({
