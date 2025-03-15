@@ -43,7 +43,7 @@ def compute_doc_scores(term, query_tfidf):
     local_scores = defaultdict(float)
     
     for doc_id, tfidf_score in postings:
-        if urls[doc_id][1] >= 0.000010712589241379107 :
+        if urls[doc_id][1] > 0 :
             local_scores[doc_id] += term_score * float(tfidf_score)
 
     return local_scores
@@ -65,10 +65,10 @@ def search(query, top_k=10):
     
     doc_scores = defaultdict(float)  # Accumulate dot products
     processed_terms = set()
-    best_scores = {}  # {doc_id: (similarity, url)} for tracking best score per doc
+    best_scores = {}  # {doc_id: (weightedSimilarity, url)} for tracking best score per doc
 
-    tf_idf_weight = 0.8
-    page_rank_weight = 0.2
+    tf_idf_weight = 0.7
+    page_rank_weight = 0.3
 
     # Process terms in parallel
     with ThreadPoolExecutor() as executor:
@@ -85,28 +85,29 @@ def search(query, top_k=10):
             for doc_id, score in local_scores.items():
                 doc_scores[doc_id] += score  # Accumulate partial dot product
 
-                # Prune based on lower bound
-                lower_bound = estimate_lower_bound(
+                # Prune based on upper bound
+                upper_bound = estimate_lower_bound(
                     doc_scores[doc_id], remaining_terms, query_tfidf, doc_norms[doc_id]
                 )
-                # We'll use min_score later, after building best_scores
-                # For now, just compute similarity
+                # Note: We only use the bound for pruning later when heap is full
+
+                # Compute exact similarity
                 similarity = cosine_similarity(
                     doc_scores[doc_id], doc_norms[doc_id], query_norm
                 )
-                weightedSimilarity =  ((similarity * tf_idf_weight) + (urls[doc_id][1] * page_rank_weight )) / (tf_idf_weight + page_rank_weight)
+                weightedSimilarity = ((similarity * tf_idf_weight) + (urls[doc_id][1] * page_rank_weight))
 
-                #url = urls.get(doc_id, [])
                 url = urls.get(doc_id, [])[0] or []
 
                 # Update best score for this doc_id
                 if doc_id not in best_scores or weightedSimilarity > best_scores[doc_id][0]:
                     best_scores[doc_id] = (weightedSimilarity, url)
 
-    # Build the top-k heap from best_scores
+    # Build the top-k heap from best_scores with pruning
     heap = []
     min_score = 0.0
     for doc_id, (weightedSimilarity, url) in best_scores.items():
+        # Prune here using the final score against min_score
         if len(heap) < top_k:
             heappush(heap, (weightedSimilarity, doc_id, url))
             if len(heap) == top_k:

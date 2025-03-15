@@ -11,13 +11,13 @@ from pathlib import Path
 db = DiskDict()
 
 WEIGHTS = {
-    "title": 3.0,
-    "h1": 2.5,
-    "h2": 2.5,
-    "h3": 2.5,
-    "h4": 2.5,
-    "h5": 2.5,
-    "h6": 2.5,
+    "title": 5.0,
+    "h1": 4.0,
+    "h2": 4.0,
+    "h3": 4.0,
+    "h4": 3.0,
+    "h5": 3.0,
+    "h6": 3.0,
     "bold": 2.0,
     "other_text": 1.0
 }
@@ -68,7 +68,7 @@ def compute_df_idf(document_generator):
         total_docs += 1
 
     for term, df in df_counts.items():
-        idf_dict[term] = math.log(total_docs / df) + 1
+        idf_dict[term] = math.log10(total_docs / df)
 
     Path('data/idf_values.json').write_bytes(orjson.dumps(idf_dict))
 
