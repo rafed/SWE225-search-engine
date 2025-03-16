@@ -72,7 +72,8 @@ def compute_df_idf(document_generator):
         total_docs += 1
 
     for term, df in df_counts.items():
-        idf_dict[term] = math.log10(total_docs / df)
+        #idf_dict[term] = math.log10(total_docs / df)
+        idf_dict[term] = math.log10(((total_docs-df+0.5) / (df+0.5))+1)
 
     Path('data/idf_values.json').write_bytes(orjson.dumps(idf_dict))
 
@@ -123,25 +124,29 @@ def compute_document_length_normalization_bm25(document_generator):
     total_docs = 0
     dlength_normalization_dict = defaultdict(lambda: (0, 0.0))
     sum_doc_length = 0
-
+    x=0
     for doc_id, sections in tqdm(document_generator(), desc="Computing BM25 doc length", total=total_docs):
         doc_length = 0
         for section, term in sections.items():
-            doc_length = doc_length + len(term)
+            doc_length = doc_length +  ( len(term) * WEIGHTS.get(section, 1.0) )
+            if(x == 0):
+                print(f"\n checking {doc_id} {section} {len(term)} {WEIGHTS.get(section, 1.0)}")   
         dlength_normalization_dict[str(doc_id)]=(doc_length, 0.0)
         sum_doc_length = sum_doc_length + doc_length
         total_docs += 1
         #print(f"{sum_doc_length} {doc_length}")
+        x +=1
 
     avg_doc_length = sum_doc_length / total_docs
-    print(f"Avg is: {avg_doc_length}")
+    print(f"Avg is: {avg_doc_length} {total_docs}")
+    new_dict = defaultdict(lambda: (0, 0.0))
     for doc_id, value in dlength_normalization_dict.items():
-        dlength_normalization_dict[str(doc_id)]=(value[0], (1 + b - (b * (value[0]/avg_doc_length))))
+        new_dict[str(doc_id)]=(value[0], (1 + b - (b * (value[0]/avg_doc_length))))
 
-    dlength_normalization_dict["avg_doc_length"]=(avg_doc_length,0)
+    new_dict["avg_doc_length"]=(avg_doc_length,0)
 
 
-    Path('data/doc_len_norm_bm25.json').write_bytes(orjson.dumps(dlength_normalization_dict))
+    Path('data/doc_len_norm_bm25.json').write_bytes(orjson.dumps(new_dict))
 
 
 

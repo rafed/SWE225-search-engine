@@ -163,8 +163,6 @@ def search_using_BM25(query,top_k=10):
     """
     Retrieve BM25 scores for the query, and return the top N relevant documents.
     """
-    avg_doc_len = doc_len_norm_bm25["avg_doc_length"][0]  # Calculate avg doc length
-    print(avg_doc_len)
     num_docs = len(doc_len_norm_bm25) - 1
     print(num_docs)
     tokens = tokenize(query)
@@ -186,9 +184,10 @@ def search_using_BM25(query,top_k=10):
     def process_chunk(chunk):
         results = []
         for doc_id in chunk:
-            if urls[doc_id][1] >= 0.000010797872620231596 :
+            if urls[doc_id][1] > 0.0002977095588546717 :
                 # Compute BM25 score for each document in the chunk
                 bm25_score = compute_bm25(allPostings, stemmed_tokens, doc_id)
+                #weighted_bm25score = ((bm25_score*0.7) + (urls[doc_id][1] * 0.3)) 
                 results.append((doc_id, urls[doc_id][0], bm25_score))
         return results
     
@@ -201,7 +200,6 @@ def search_using_BM25(query,top_k=10):
         # Sort each sublist by BM25 score in descending order and keep only top 10
         for sublist in results:
             sublist.sort(key=lambda x: x[2], reverse=True)  # Sort each sublist by BM25 score
-            sublist[:] = sublist[:10]
 
         for sublist in results:
             all_scores.extend(sublist)  # Add the top 10 documents from each sublist
