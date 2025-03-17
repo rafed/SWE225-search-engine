@@ -64,7 +64,6 @@ def search(query, top_k=10):
     query_norm = math.sqrt(sum(val ** 2 for val in query_tfidf.values()))
     
     doc_scores = defaultdict(float)  # Accumulate dot products
-    processed_terms = set()
     best_scores = {}  # {doc_id: (weightedSimilarity, url)} for tracking best score per doc
 
     tf_idf_weight = 0.7
@@ -77,22 +76,17 @@ def search(query, top_k=10):
             query_tfidf.keys()
         )
 
-        for term, local_scores in term_results:
-            processed_terms.add(term)
+    for term, local_scores in term_results:
+        for doc_id, score in local_scores.items():
+            doc_scores[doc_id] += score 
 
-            for doc_id, score in local_scores.items():
-                doc_scores[doc_id] += score  # Accumulate partial dot product
-
-                similarity = cosine_similarity(
-                    doc_scores[doc_id], doc_norms[doc_id], query_norm
-                )
-                weightedSimilarity = ((similarity * tf_idf_weight) + (urls[doc_id][1] * page_rank_weight))
-
-                url = urls.get(doc_id, [])[0] or []
-
-                # Update best score for this doc_id
-                if doc_id not in best_scores or weightedSimilarity > best_scores[doc_id][0]:
-                    best_scores[doc_id] = (weightedSimilarity, url)
+    for doc_id, score in doc_scores.items():
+        similarity = cosine_similarity(
+            doc_scores[doc_id], doc_norms[doc_id], query_norm
+        )
+        weightedSimilarity = ((similarity * tf_idf_weight) + (urls[doc_id][1] * page_rank_weight))
+        url = urls.get(doc_id, [])[0] or []
+        best_scores[doc_id] = (weightedSimilarity, url)
 
     # Build the top-k heap from best_scores with pruning
     heap = []
@@ -108,7 +102,6 @@ def search(query, top_k=10):
             heappush(heap, (weightedSimilarity, doc_id, url))
             min_score = heap[0][0]
 
-    # Extract results from heap
     results = []
     while heap:
         results.append(heappop(heap))
